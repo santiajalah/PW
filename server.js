@@ -73,41 +73,91 @@ async function SAZUMI_AUTO_CREATE_ACCOUNT() {
         await SAZUMI_DRIVER.get('https://wangxutechnologyhkcolimited.pxf.io/MAzYVP');
         
         await SAZUMI_DRIVER.wait(until.elementLocated(By.css('body')), 15000);
-        await SAZUMI_DRIVER.sleep(4000);
+        await SAZUMI_DRIVER.sleep(8000);
         console.log('[INFO] Page loaded completely');
+        
+        console.log('[INFO] Debugging page content');
+        try {
+            const SAZUMI_PAGE_SOURCE = await SAZUMI_DRIVER.getPageSource();
+            if (SAZUMI_PAGE_SOURCE.includes('Log in')) {
+                console.log('[INFO] Login text found in page');
+            } else {
+                console.log('[INFO] Login text NOT found in page');
+            }
+        } catch (e) {
+            console.log('[INFO] Could not get page source');
+        }
         
         console.log('[INFO] Looking for Login button');
         const SAZUMI_LOGIN_SELECTORS = [
-            "//span[contains(@class, 'text-white') and contains(@class, 'bg-theme') and contains(text(), 'Log in')]",
-            "//span[contains(text(), 'Log in') and contains(@class, 'bg-theme')]",
-            "span.text-white.bg-theme",
-            "span[class*='bg-theme'][class*='text-white']"
+            "//span[text()='Log in']",
+            "//button[contains(text(), 'Log in')]",
+            "//a[contains(text(), 'Log in')]",
+            "//div[contains(text(), 'Log in')]",
+            "//span[contains(text(), 'Log in')]",
+            "*[contains(text(), 'Log in')]",
+            "span",
+            "button",
+            "a[href*='login']"
         ];
         
         let SAZUMI_LOGIN_CLICKED = false;
         for (const SAZUMI_SELECTOR of SAZUMI_LOGIN_SELECTORS) {
             try {
-                let SAZUMI_LOGIN_BUTTON;
-                if (SAZUMI_SELECTOR.startsWith('//')) {
-                    SAZUMI_LOGIN_BUTTON = await SAZUMI_DRIVER.wait(
-                        until.elementLocated(By.xpath(SAZUMI_SELECTOR)), 
-                        5000
-                    );
+                let SAZUMI_LOGIN_ELEMENTS;
+                if (SAZUMI_SELECTOR.startsWith('//') || SAZUMI_SELECTOR.includes('*[contains')) {
+                    SAZUMI_LOGIN_ELEMENTS = await SAZUMI_DRIVER.findElements(By.xpath(SAZUMI_SELECTOR));
                 } else {
-                    SAZUMI_LOGIN_BUTTON = await SAZUMI_DRIVER.wait(
-                        until.elementLocated(By.css(SAZUMI_SELECTOR)), 
-                        5000
-                    );
+                    SAZUMI_LOGIN_ELEMENTS = await SAZUMI_DRIVER.findElements(By.css(SAZUMI_SELECTOR));
                 }
-                await SAZUMI_DRIVER.executeScript("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", SAZUMI_LOGIN_BUTTON);
-                await SAZUMI_DRIVER.sleep(1500);
-                await SAZUMI_DRIVER.executeScript("arguments[0].click();", SAZUMI_LOGIN_BUTTON);
-                console.log('[INFO] Login button clicked successfully');
-                SAZUMI_LOGIN_CLICKED = true;
-                break;
+                
+                console.log(`[INFO] Found ${SAZUMI_LOGIN_ELEMENTS.length} elements for selector: ${SAZUMI_SELECTOR}`);
+                
+                for (const SAZUMI_ELEMENT of SAZUMI_LOGIN_ELEMENTS) {
+                    try {
+                        const SAZUMI_TEXT = await SAZUMI_ELEMENT.getText();
+                        console.log(`[INFO] Element text: "${SAZUMI_TEXT}"`);
+                        
+                        if (SAZUMI_TEXT.includes('Log in') || SAZUMI_SELECTOR === 'span' || SAZUMI_SELECTOR === 'button') {
+                            await SAZUMI_DRIVER.executeScript("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", SAZUMI_ELEMENT);
+                            await SAZUMI_DRIVER.sleep(1500);
+                            await SAZUMI_DRIVER.executeScript("arguments[0].click();", SAZUMI_ELEMENT);
+                            console.log(`[INFO] Login button clicked: "${SAZUMI_TEXT}"`);
+                            SAZUMI_LOGIN_CLICKED = true;
+                            break;
+                        }
+                    } catch (elementError) {
+                        continue;
+                    }
+                }
+                
+                if (SAZUMI_LOGIN_CLICKED) break;
+                
             } catch (e) {
                 console.log(`[INFO] Login selector failed: ${SAZUMI_SELECTOR}`);
                 continue;
+            }
+        }
+        
+        if (!SAZUMI_LOGIN_CLICKED) {
+            console.log('[INFO] Trying fallback method - clicking all clickable elements');
+            try {
+                const SAZUMI_ALL_ELEMENTS = await SAZUMI_DRIVER.findElements(By.css('*'));
+                for (const SAZUMI_EL of SAZUMI_ALL_ELEMENTS) {
+                    try {
+                        const SAZUMI_EL_TEXT = await SAZUMI_EL.getText();
+                        if (SAZUMI_EL_TEXT && SAZUMI_EL_TEXT.includes('Log in')) {
+                            await SAZUMI_DRIVER.executeScript("arguments[0].click();", SAZUMI_EL);
+                            console.log(`[INFO] Fallback login clicked: "${SAZUMI_EL_TEXT}"`);
+                            SAZUMI_LOGIN_CLICKED = true;
+                            break;
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                }
+            } catch (fallbackError) {
+                console.log('[ERROR] Fallback method also failed');
             }
         }
         
