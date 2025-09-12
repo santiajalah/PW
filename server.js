@@ -78,19 +78,27 @@ async function SAZUMI_AUTO_CREATE_ACCOUNT() {
         
         console.log('[INFO] Looking for Login button');
         const SAZUMI_LOGIN_SELECTORS = [
-            "//span[contains(text(), 'Log in')]",
-            "//button[contains(text(), 'Log in')]",
-            "//a[contains(text(), 'Log in')]",
-            "//div[contains(text(), 'Log in')]"
+            "//span[contains(@class, 'text-white') and contains(@class, 'bg-theme') and contains(text(), 'Log in')]",
+            "//span[contains(text(), 'Log in') and contains(@class, 'bg-theme')]",
+            "span.text-white.bg-theme",
+            "span[class*='bg-theme'][class*='text-white']"
         ];
         
         let SAZUMI_LOGIN_CLICKED = false;
         for (const SAZUMI_SELECTOR of SAZUMI_LOGIN_SELECTORS) {
             try {
-                const SAZUMI_LOGIN_BUTTON = await SAZUMI_DRIVER.wait(
-                    until.elementLocated(By.xpath(SAZUMI_SELECTOR)), 
-                    5000
-                );
+                let SAZUMI_LOGIN_BUTTON;
+                if (SAZUMI_SELECTOR.startsWith('//')) {
+                    SAZUMI_LOGIN_BUTTON = await SAZUMI_DRIVER.wait(
+                        until.elementLocated(By.xpath(SAZUMI_SELECTOR)), 
+                        5000
+                    );
+                } else {
+                    SAZUMI_LOGIN_BUTTON = await SAZUMI_DRIVER.wait(
+                        until.elementLocated(By.css(SAZUMI_SELECTOR)), 
+                        5000
+                    );
+                }
                 await SAZUMI_DRIVER.executeScript("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", SAZUMI_LOGIN_BUTTON);
                 await SAZUMI_DRIVER.sleep(1500);
                 await SAZUMI_DRIVER.executeScript("arguments[0].click();", SAZUMI_LOGIN_BUTTON);
@@ -140,10 +148,10 @@ async function SAZUMI_AUTO_CREATE_ACCOUNT() {
         
         console.log('[INFO] Looking for email input field');
         const SAZUMI_EMAIL_SELECTORS = [
-            'input[placeholder*="Email" i]',
             'input[name="account"]',
-            'input[type="email"]',
-            'input[placeholder*="email" i]'
+            'input[placeholder="Email"]',
+            'input[class*="w-full"][class*="px-3"][class*="py-3"]',
+            'input[type="text"][placeholder="Email"]'
         ];
         
         let SAZUMI_EMAIL_FILLED = false;
@@ -171,22 +179,29 @@ async function SAZUMI_AUTO_CREATE_ACCOUNT() {
         
         await SAZUMI_DRIVER.sleep(2000);
         
-        console.log('[INFO] Looking for Send button - PENTING INI HARUS DIKLIK!');
+        console.log('[INFO] Looking for Send button');
         const SAZUMI_SEND_SELECTORS = [
-            "//button[.//span[contains(text(), 'Send')]]",
-            "//span[contains(text(), 'Send')]/parent::button",
-            "//span[text()='Send']/ancestor::button[1]",
-            "//button[contains(text(), 'Send')]",
-            "//span[contains(text(), 'Send')]"
+            "//button[.//span[contains(@class, 'text-theme') and contains(text(), 'Send')]]",
+            "//span[contains(@class, 'text-theme') and contains(text(), 'Send')]/parent::button",
+            "button[class*='absolute'][class*='top-0'][class*='right-0']",
+            "//span[text()='Send']/ancestor::button[1]"
         ];
         
         let SAZUMI_SEND_CLICKED = false;
         for (const SAZUMI_SELECTOR of SAZUMI_SEND_SELECTORS) {
             try {
-                const SAZUMI_SEND_BUTTON = await SAZUMI_DRIVER.wait(
-                    until.elementLocated(By.xpath(SAZUMI_SELECTOR)), 
-                    8000
-                );
+                let SAZUMI_SEND_BUTTON;
+                if (SAZUMI_SELECTOR.startsWith('//')) {
+                    SAZUMI_SEND_BUTTON = await SAZUMI_DRIVER.wait(
+                        until.elementLocated(By.xpath(SAZUMI_SELECTOR)), 
+                        8000
+                    );
+                } else {
+                    SAZUMI_SEND_BUTTON = await SAZUMI_DRIVER.wait(
+                        until.elementLocated(By.css(SAZUMI_SELECTOR)), 
+                        8000
+                    );
+                }
                 
                 // Pastikan element visible dan clickable
                 await SAZUMI_DRIVER.executeScript("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", SAZUMI_SEND_BUTTON);
@@ -274,10 +289,10 @@ async function SAZUMI_AUTO_CREATE_ACCOUNT() {
         
         console.log('[INFO] Looking for verification code input');
         const SAZUMI_CODE_SELECTORS = [
-            'input[placeholder*="Verification" i]',
             'input[name="captcha"]',
-            'input[placeholder*="Code" i]',
-            'input[placeholder*="verification" i]'
+            'input[placeholder="Verification Code"]',
+            'input[maxlength="4"]',
+            'input[type="text"][placeholder="Verification Code"]'
         ];
         
         let SAZUMI_CODE_FILLED = false;
@@ -309,10 +324,10 @@ async function SAZUMI_AUTO_CREATE_ACCOUNT() {
         
         console.log('[INFO] Looking for password input');
         const SAZUMI_PASSWORD_SELECTORS = [
-            'input[placeholder*="Password" i]',
             'input[name="password"]',
-            'input[type="password"]',
-            'input[placeholder*="password" i]'
+            'input[placeholder="Password"]',
+            'input[maxlength="20"]',
+            'input[type="text"][placeholder="Password"]'
         ];
         
         let SAZUMI_PASSWORD_FILLED = false;
@@ -340,12 +355,12 @@ async function SAZUMI_AUTO_CREATE_ACCOUNT() {
         
         await SAZUMI_DRIVER.sleep(2000);
         
-        console.log('[INFO] Looking for Sign up button - HARUS DIKLIK INI!');
+        console.log('[INFO] Looking for Sign up button');
         const SAZUMI_SIGNUP_SELECTORS = [
             'button#loginRegisterBtn',
-            "//button[contains(text(), 'Sign up')]",
-            "//button[@id='loginRegisterBtn']",
-            'button[id="loginRegisterBtn"]'
+            'button[id="loginRegisterBtn"]',
+            "//button[contains(@class, 'btn') and contains(@class, 'bg-theme') and contains(text(), 'Sign up')]",
+            'button[class*="btn"][class*="bg-theme"]'
         ];
         
         let SAZUMI_SIGNUP_CLICKED = false;
