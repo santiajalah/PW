@@ -138,6 +138,21 @@ async function SAZUMI_INIT_DRIVER() {
     console.log('[INFO] Chrome driver initialized with proxy');
 }
 
+async function SAZUMI_WAIT_PAGE_LOAD() {
+    await SAZUMI_DRIVER.wait(
+        until.elementLocated(By.css('body')),
+        15000
+    );
+    await SAZUMI_DRIVER.executeScript('return document.readyState').then(state => {
+        if (state !== 'complete') {
+            return SAZUMI_DRIVER.wait(
+                () => SAZUMI_DRIVER.executeScript('return document.readyState === "complete"'),
+                15000
+            );
+        }
+    });
+}
+
 async function SAZUMI_AUTOMATION_PROCESS() {
     try {
         await SAZUMI_GET_IP_INFO();
@@ -148,61 +163,100 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         
         console.log('[INFO] Navigating to PicWish...');
         await SAZUMI_DRIVER.get(SAZUMI_TARGET_URL);
-        await SAZUMI_DRIVER.sleep(3000);
+        await SAZUMI_WAIT_PAGE_LOAD();
+        console.log('[INFO] Home page loaded successfully');
         
-        console.log('[INFO] Clicking Login button...');
+        console.log('[INFO] Waiting for Login button...');
         const SAZUMI_LOGIN_BTN = await SAZUMI_DRIVER.wait(
-            until.elementLocated(By.css('span.text-white.bg-theme')), 
-            10000
+            until.elementIsVisible(
+                await SAZUMI_DRIVER.wait(
+                    until.elementLocated(By.css('span.text-white.bg-theme')),
+                    15000
+                )
+            ),
+            15000
         );
         await SAZUMI_LOGIN_BTN.click();
-        await SAZUMI_DRIVER.sleep(2000);
+        await SAZUMI_WAIT_PAGE_LOAD();
+        console.log('[INFO] Login page loaded successfully');
         
-        console.log('[INFO] Entering email address...');
+        console.log('[INFO] Waiting for email input field...');
         const SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
-            until.elementLocated(By.css('input[name="account"]')), 
-            10000
+            until.elementIsVisible(
+                await SAZUMI_DRIVER.wait(
+                    until.elementLocated(By.css('input[name="account"]')),
+                    15000
+                )
+            ),
+            15000
         );
         await SAZUMI_EMAIL_INPUT.clear();
         await SAZUMI_EMAIL_INPUT.sendKeys(SAZUMI_EMAIL);
         
-        console.log('[INFO] Clicking Send button...');
+        console.log('[INFO] Waiting for Send button...');
         const SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-            until.elementLocated(By.css('button span.text-theme')), 
-            10000
+            until.elementIsVisible(
+                await SAZUMI_DRIVER.wait(
+                    until.elementLocated(By.css('button span.text-theme')),
+                    15000
+                )
+            ),
+            15000
         );
         await SAZUMI_SEND_BTN.click();
         
-        console.log('[INFO] Waiting for verification code...');
+        console.log('[INFO] Waiting for verification code input to appear...');
+        const SAZUMI_CODE_INPUT = await SAZUMI_DRIVER.wait(
+            until.elementIsVisible(
+                await SAZUMI_DRIVER.wait(
+                    until.elementLocated(By.css('input[name="captcha"]')),
+                    20000
+                )
+            ),
+            20000
+        );
+        
+        console.log('[INFO] Getting verification code...');
         const SAZUMI_CODE = await SAZUMI_GET_VERIFICATION_CODE(SAZUMI_EMAIL);
         
         console.log('[INFO] Entering verification code...');
-        const SAZUMI_CODE_INPUT = await SAZUMI_DRIVER.wait(
-            until.elementLocated(By.css('input[name="captcha"]')), 
-            10000
-        );
         await SAZUMI_CODE_INPUT.clear();
         await SAZUMI_CODE_INPUT.sendKeys(SAZUMI_CODE);
+        
+        console.log('[INFO] Waiting for password input field...');
+        const SAZUMI_PASSWORD_INPUT = await SAZUMI_DRIVER.wait(
+            until.elementIsVisible(
+                await SAZUMI_DRIVER.wait(
+                    until.elementLocated(By.css('input[name="password"]')),
+                    15000
+                )
+            ),
+            15000
+        );
         
         const SAZUMI_PASSWORD = SAZUMI_GENERATE_PASSWORD();
         console.log(`[INFO] Generated password: ${SAZUMI_PASSWORD}`);
         
-        console.log('[INFO] Entering password...');
-        const SAZUMI_PASSWORD_INPUT = await SAZUMI_DRIVER.wait(
-            until.elementLocated(By.css('input[name="password"]')), 
-            10000
-        );
         await SAZUMI_PASSWORD_INPUT.clear();
         await SAZUMI_PASSWORD_INPUT.sendKeys(SAZUMI_PASSWORD);
         
-        console.log('[INFO] Clicking Sign up button...');
+        console.log('[INFO] Waiting for Sign up button...');
         const SAZUMI_SIGNUP_BTN = await SAZUMI_DRIVER.wait(
-            until.elementLocated(By.id('loginRegisterBtn')), 
-            10000
+            until.elementIsVisible(
+                await SAZUMI_DRIVER.wait(
+                    until.elementLocated(By.id('loginRegisterBtn')),
+                    15000
+                )
+            ),
+            15000
         );
         await SAZUMI_SIGNUP_BTN.click();
         
-        await SAZUMI_DRIVER.sleep(5000);
+        console.log('[INFO] Waiting for registration completion...');
+        await SAZUMI_DRIVER.wait(
+            () => SAZUMI_DRIVER.getCurrentUrl().then(url => !url.includes('register')),
+            20000
+        );
         
         console.log('[INFO] SUCCESS - Account created successfully!');
         console.log(`[INFO] Email: ${SAZUMI_EMAIL}`);
