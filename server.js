@@ -130,15 +130,43 @@ async function SAZUMI_SINGLE_AUTOMATION() {
         
         console.log('[INFO] Navigating to PicWish...');
         await SAZUMI_DRIVER_LOCAL.get(SAZUMI_TARGET_URL);
-        await SAZUMI_DRIVER_LOCAL.sleep(3000);
+        await SAZUMI_DRIVER_LOCAL.sleep(5000);
         
-        console.log('[INFO] Clicking Login button...');
-        const SAZUMI_LOGIN_BTN = await SAZUMI_DRIVER_LOCAL.wait(
-            until.elementLocated(By.css('span.text-white.bg-theme')), 
-            10000
-        );
+        console.log('[INFO] Waiting for page to fully load...');
+        await SAZUMI_DRIVER_LOCAL.wait(until.titleContains('PicWish'), 15000);
+        
+        console.log('[INFO] Looking for Login button...');
+        let SAZUMI_LOGIN_BTN;
+        try {
+            SAZUMI_LOGIN_BTN = await SAZUMI_DRIVER_LOCAL.wait(
+                until.elementLocated(By.xpath("//span[contains(@class, 'text-white') and contains(@class, 'bg-theme') and text()='Log in']")), 
+                5000
+            );
+        } catch (error) {
+            console.log('[INFO] First selector failed, trying alternative selectors...');
+            try {
+                SAZUMI_LOGIN_BTN = await SAZUMI_DRIVER_LOCAL.wait(
+                    until.elementLocated(By.xpath("//span[text()='Log in']")), 
+                    5000
+                );
+            } catch (error2) {
+                try {
+                    SAZUMI_LOGIN_BTN = await SAZUMI_DRIVER_LOCAL.wait(
+                        until.elementLocated(By.css('span.text-white.bg-theme')), 
+                        5000
+                    );
+                } catch (error3) {
+                    SAZUMI_LOGIN_BTN = await SAZUMI_DRIVER_LOCAL.wait(
+                        until.elementLocated(By.xpath("//span[contains(@class, 'bg-theme')]")), 
+                        5000
+                    );
+                }
+            }
+        }
+        
+        console.log('[INFO] Login button found, clicking...');
         await SAZUMI_LOGIN_BTN.click();
-        await SAZUMI_DRIVER_LOCAL.sleep(2000);
+        await SAZUMI_DRIVER_LOCAL.sleep(3000);
         
         console.log('[INFO] Entering email address...');
         const SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER_LOCAL.wait(
@@ -148,11 +176,36 @@ async function SAZUMI_SINGLE_AUTOMATION() {
         await SAZUMI_EMAIL_INPUT.clear();
         await SAZUMI_EMAIL_INPUT.sendKeys(SAZUMI_EMAIL);
         
-        console.log('[INFO] Clicking Send button...');
-        const SAZUMI_SEND_BTN = await SAZUMI_DRIVER_LOCAL.wait(
-            until.elementLocated(By.css('button span.text-theme')), 
-            10000
-        );
+        console.log('[INFO] Looking for Send button...');
+        let SAZUMI_SEND_BTN;
+        try {
+            SAZUMI_SEND_BTN = await SAZUMI_DRIVER_LOCAL.wait(
+                until.elementLocated(By.xpath("//button[@type='button']//span[contains(@class, 'text-theme') and text()='Send']")), 
+                5000
+            );
+        } catch (error) {
+            console.log('[INFO] First Send selector failed, trying alternatives...');
+            try {
+                SAZUMI_SEND_BTN = await SAZUMI_DRIVER_LOCAL.wait(
+                    until.elementLocated(By.xpath("//span[text()='Send']")), 
+                    5000
+                );
+            } catch (error2) {
+                try {
+                    SAZUMI_SEND_BTN = await SAZUMI_DRIVER_LOCAL.wait(
+                        until.elementLocated(By.css('button[type="button"]')), 
+                        5000
+                    );
+                } catch (error3) {
+                    SAZUMI_SEND_BTN = await SAZUMI_DRIVER_LOCAL.wait(
+                        until.elementLocated(By.xpath("//button[contains(., 'Send')]")), 
+                        5000
+                    );
+                }
+            }
+        }
+        
+        console.log('[INFO] Send button found, clicking...');
         await SAZUMI_SEND_BTN.click();
         
         console.log('[INFO] Waiting for verification code...');
