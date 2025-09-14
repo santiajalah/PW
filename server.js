@@ -120,6 +120,7 @@ async function SAZUMI_INIT_DRIVER() {
     SAZUMI_OPTIONS.addArguments('--disable-web-security');
     SAZUMI_OPTIONS.addArguments('--disable-features=VizDisplayCompositor');
     SAZUMI_OPTIONS.addArguments('--disable-extensions');
+    SAZUMI_OPTIONS.addArguments('--disable-plugins');
     SAZUMI_OPTIONS.excludeSwitches(['enable-automation']);
     
     SAZUMI_DRIVER = await new Builder()
@@ -134,7 +135,6 @@ async function SAZUMI_INIT_DRIVER() {
 async function SAZUMI_AUTOMATION_PROCESS() {
     try {
         await SAZUMI_GET_IP_INFO();
-        
         await SAZUMI_INIT_DRIVER();
         
         const SAZUMI_EMAIL = await SAZUMI_GET_EMAIL();
@@ -188,6 +188,10 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         await SAZUMI_PASSWORD_INPUT.clear();
         await SAZUMI_PASSWORD_INPUT.sendKeys(SAZUMI_PASSWORD);
         
+        const SAZUMI_PRE_SIGNUP_DELAY = SAZUMI_RANDOM_DELAY();
+        console.log(`[INFO] Pre-signup delay: ${SAZUMI_PRE_SIGNUP_DELAY / 1000} seconds`);
+        await new Promise(resolve => setTimeout(resolve, SAZUMI_PRE_SIGNUP_DELAY));
+        
         console.log('[INFO] Clicking Sign up button...');
         const SAZUMI_SIGNUP_BTN = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.id('loginRegisterBtn')), 
@@ -202,10 +206,6 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         console.log(`[INFO] Password: ${SAZUMI_PASSWORD}`);
         console.log(`[INFO] Username: ${SAZUMI_EMAIL_DATA.username}`);
         
-        const SAZUMI_POST_DELAY = SAZUMI_RANDOM_DELAY();
-        console.log(`[INFO] Random delay before next process: ${SAZUMI_POST_DELAY / 1000} seconds`);
-        await new Promise(resolve => setTimeout(resolve, SAZUMI_POST_DELAY));
-        
     } catch (error) {
         console.log(`[ERROR] Automation failed: ${error.message}`);
     } finally {
@@ -216,10 +216,20 @@ async function SAZUMI_AUTOMATION_PROCESS() {
     }
 }
 
+async function SAZUMI_START_LOOP() {
+    while (true) {
+        await SAZUMI_AUTOMATION_PROCESS();
+        
+        const SAZUMI_NEXT_DELAY = SAZUMI_RANDOM_DELAY();
+        console.log(`[INFO] Waiting ${SAZUMI_NEXT_DELAY / 1000} seconds before next registration...`);
+        await new Promise(resolve => setTimeout(resolve, SAZUMI_NEXT_DELAY));
+    }
+}
+
 SAZUMI_APP.listen(SAZUMI_PORT, () => {
     console.log(`[INFO] Server started on port ${SAZUMI_PORT}`);
-    console.log('[INFO] Starting PicWish automation...');
-    SAZUMI_AUTOMATION_PROCESS();
+    console.log('[INFO] Starting PicWish automation loop...');
+    SAZUMI_START_LOOP();
 });
 
 module.exports = SAZUMI_APP;
