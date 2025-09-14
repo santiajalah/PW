@@ -150,10 +150,25 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         await SAZUMI_LOGIN_BTN.click();
         
         console.log('[INFO] Entering email address...');
-        const SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
-            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[placeholder="Email"][name="account"]'))), 
-            15000
-        );
+        let SAZUMI_EMAIL_INPUT;
+        try {
+            SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
+                until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[name="account"]'))), 
+                15000
+            );
+        } catch (error) {
+            try {
+                SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
+                    until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[placeholder="Email"]'))), 
+                    10000
+                );
+            } catch (error2) {
+                SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
+                    until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[type="text"]'))), 
+                    10000
+                );
+            }
+        }
         await SAZUMI_EMAIL_INPUT.clear();
         await SAZUMI_EMAIL_INPUT.sendKeys(SAZUMI_EMAIL);
         
