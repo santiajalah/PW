@@ -173,10 +173,25 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         await SAZUMI_EMAIL_INPUT.sendKeys(SAZUMI_EMAIL);
         
         console.log('[INFO] Clicking Send button...');
-        const SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.xpath('//span[contains(text(), "Send")]'))), 
-            15000
-        );
+        let SAZUMI_SEND_BTN;
+        try {
+            SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
+                until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('button[type="button"]'))), 
+                15000
+            );
+        } catch (error) {
+            try {
+                SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
+                    until.elementIsVisible(SAZUMI_DRIVER.findElement(By.xpath('//span[contains(text(), "Send")]'))), 
+                    10000
+                );
+            } catch (error2) {
+                SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
+                    until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('button'))), 
+                    10000
+                );
+            }
+        }
         await SAZUMI_SEND_BTN.click();
         
         console.log('[INFO] Waiting for verification code...');
