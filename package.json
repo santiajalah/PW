@@ -9,9 +9,10 @@
     "dev": "node server.js"
   },
   "dependencies": {
+    "axios": "^1.6.0",
     "express": "^4.18.2",
     "selenium-webdriver": "^4.15.0",
-    "axios": "^1.6.0"
+    "user-agents": "^1.1.660"
   },
   "engines": {
     "node": ">=18.0.0"
