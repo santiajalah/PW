@@ -1,7 +1,7 @@
 {
-  "name": "PW",
+  "name": "sazumi-auto-register",
   "version": "1.0.0",
-  "description": "SAZUMI Auto Account Creator with Proxy Rotation",
+  "description": "SAZUMI Auto Account Creator with Selenium",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
@@ -9,8 +9,9 @@
     "dev": "node server.js"
   },
   "dependencies": {
-    "axios": "^1.6.0",
-    "selenium-webdriver": "^4.35.0"
+    "express": "^4.18.2",
+    "selenium-webdriver": "^4.15.0",
+    "axios": "^1.6.0"
   },
   "engines": {
     "node": ">=18.0.0"
