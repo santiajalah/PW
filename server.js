@@ -176,23 +176,29 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         let SAZUMI_SEND_BTN;
         try {
             SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('button[type="button"]'))), 
+                until.elementLocated(By.css('button[type="button"]')), 
                 15000
             );
         } catch (error) {
             try {
                 SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                    until.elementIsVisible(SAZUMI_DRIVER.findElement(By.xpath('//span[contains(text(), "Send")]'))), 
+                    until.elementLocated(By.xpath('//span[contains(text(), "Send")]')), 
                     10000
                 );
             } catch (error2) {
                 SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                    until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('button'))), 
+                    until.elementLocated(By.css('button')), 
                     10000
                 );
             }
         }
-        await SAZUMI_SEND_BTN.click();
+        await SAZUMI_DRIVER.executeScript('arguments[0].scrollIntoView({block: "center"});', SAZUMI_SEND_BTN);
+        await SAZUMI_DRIVER.wait(until.elementIsEnabled(SAZUMI_SEND_BTN), 5000);
+        try {
+            await SAZUMI_SEND_BTN.click();
+        } catch (clickError) {
+            await SAZUMI_DRIVER.executeScript('arguments[0].click();', SAZUMI_SEND_BTN);
+        }
         
         console.log('[INFO] Waiting for verification code...');
         const SAZUMI_CODE = await SAZUMI_GET_VERIFICATION_CODE(SAZUMI_EMAIL);
