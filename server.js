@@ -45,6 +45,21 @@ function SAZUMI_GET_NEXT_PROXY() {
     return null;
 }
 
+async function SAZUMI_CHECK_IP() {
+    try {
+        console.log('[INFO] Checking current IP address...');
+        const SAZUMI_IP_RESPONSE = await axios.get('https://ipinfo.io/json');
+        const SAZUMI_IP_DATA = SAZUMI_IP_RESPONSE.data;
+        console.log(`[INFO] Current IP: ${SAZUMI_IP_DATA.ip}`);
+        console.log(`[INFO] Location: ${SAZUMI_IP_DATA.city}, ${SAZUMI_IP_DATA.region}, ${SAZUMI_IP_DATA.country}`);
+        console.log(`[INFO] ISP: ${SAZUMI_IP_DATA.org}`);
+        return SAZUMI_IP_DATA;
+    } catch (error) {
+        console.log(`[ERROR] Failed to check IP: ${error.message}`);
+        return null;
+    }
+}
+
 async function SAZUMI_GET_EMAIL() {
     try {
         console.log('[INFO] Getting temporary email...');
@@ -207,6 +222,8 @@ async function SAZUMI_AUTOMATION_PROCESS() {
 async function SAZUMI_CONTINUOUS_AUTOMATION() {
     let SAZUMI_ACCOUNT_COUNT = 0;
     
+    await SAZUMI_CHECK_IP();
+    
     while (true) {
         try {
             const SAZUMI_RESULT = await SAZUMI_AUTOMATION_PROCESS();
@@ -214,6 +231,7 @@ async function SAZUMI_CONTINUOUS_AUTOMATION() {
             if (SAZUMI_RESULT) {
                 SAZUMI_ACCOUNT_COUNT++;
                 console.log(`[INFO] Total accounts created: ${SAZUMI_ACCOUNT_COUNT}`);
+                await SAZUMI_CHECK_IP();
             }
             
             console.log('[INFO] Starting next automation cycle...');
