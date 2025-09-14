@@ -144,14 +144,14 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         
         console.log('[INFO] Clicking Login button...');
         const SAZUMI_LOGIN_BTN = await SAZUMI_DRIVER.wait(
-            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('span.text-white.bg-theme'))), 
+            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.xpath('//span[contains(text(), "Log in")]'))), 
             15000
         );
         await SAZUMI_LOGIN_BTN.click();
         
         console.log('[INFO] Entering email address...');
         const SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
-            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[name="account"]'))), 
+            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[placeholder="Email"][name="account"]'))), 
             15000
         );
         await SAZUMI_EMAIL_INPUT.clear();
@@ -159,7 +159,7 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         
         console.log('[INFO] Clicking Send button...');
         const SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('button span.text-theme'))), 
+            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.xpath('//span[contains(text(), "Send")]'))), 
             15000
         );
         await SAZUMI_SEND_BTN.click();
@@ -180,7 +180,7 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         
         console.log('[INFO] Entering password...');
         const SAZUMI_PASSWORD_INPUT = await SAZUMI_DRIVER.wait(
-            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[name="password"]'))), 
+            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[placeholder="Password"][name="password"]'))), 
             15000
         );
         await SAZUMI_PASSWORD_INPUT.clear();
