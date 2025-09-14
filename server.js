@@ -172,30 +172,39 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         await SAZUMI_EMAIL_INPUT.clear();
         await SAZUMI_EMAIL_INPUT.sendKeys(SAZUMI_EMAIL);
         
+        await SAZUMI_DRIVER.sleep(3000);
+        
         console.log('[INFO] Clicking Send button...');
         let SAZUMI_SEND_BTN;
         try {
             SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                until.elementLocated(By.css('button.absolute.top-0.right-0')), 
+                until.elementLocated(By.xpath('//span[text()="Send"]/parent::button')), 
                 15000
             );
         } catch (error) {
             try {
                 SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                    until.elementLocated(By.xpath('//button[contains(@class, "absolute") and contains(@class, "right-0")]')), 
+                    until.elementLocated(By.xpath('//span[contains(text(), "Send")]/parent::button')), 
                     10000
                 );
             } catch (error2) {
                 try {
                     SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                        until.elementLocated(By.xpath('//span[contains(text(), "Send")]/..')), 
+                        until.elementLocated(By.css('button.absolute')), 
                         10000
                     );
                 } catch (error3) {
-                    SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                        until.elementLocated(By.css('button[type="button"]')), 
-                        10000
-                    );
+                    try {
+                        SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
+                            until.elementLocated(By.css('button.cursor-pointer')), 
+                            10000
+                        );
+                    } catch (error4) {
+                        SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
+                            until.elementLocated(By.css('input[name="account"] + button, input[name="account"] ~ button')), 
+                            10000
+                        );
+                    }
                 }
             }
         }
