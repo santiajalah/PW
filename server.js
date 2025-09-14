@@ -16,7 +16,35 @@ let SAZUMI_DRIVER;
 let SAZUMI_EMAIL_DATA;
 let SAZUMI_PROXIES = [];
 let SAZUMI_PROXY_INDEX = 0;
-let SAZUMI_PROXY_USAGE = {};
+let SAZUMI_PROXY_USAGE = new Map();
+
+function SAZUMI_LOAD_PROXIES() {
+    try {
+        const SAZUMI_PROXY_DATA = fs.readFileSync('proxy.txt', 'utf8');
+        SAZUMI_PROXIES = SAZUMI_PROXY_DATA.split('\n').filter(proxy => proxy.trim());
+        console.log(`[INFO] Loaded ${SAZUMI_PROXIES.length} proxies`);
+        return SAZUMI_PROXIES;
+    } catch (error) {
+        console.log(`[ERROR] Failed to load proxies: ${error.message}`);
+        throw error;
+    }
+}
+
+function SAZUMI_GET_NEXT_PROXY() {
+    while (SAZUMI_PROXY_INDEX < SAZUMI_PROXIES.length) {
+        const SAZUMI_CURRENT_PROXY = SAZUMI_PROXIES[SAZUMI_PROXY_INDEX];
+        const SAZUMI_USAGE_COUNT = SAZUMI_PROXY_USAGE.get(SAZUMI_CURRENT_PROXY) || 0;
+        
+        if (SAZUMI_USAGE_COUNT < 9) {
+            SAZUMI_PROXY_USAGE.set(SAZUMI_CURRENT_PROXY, SAZUMI_USAGE_COUNT + 1);
+            console.log(`[INFO] Using proxy: ${SAZUMI_CURRENT_PROXY} (${SAZUMI_USAGE_COUNT + 1}/9)`);
+            return SAZUMI_CURRENT_PROXY;
+        } else {
+            SAZUMI_PROXY_INDEX++;
+        }
+    }
+    throw new Error('All proxies exhausted');
+}
 
 async function SAZUMI_GET_IP_INFO() {
     try {
@@ -47,7 +75,7 @@ async function SAZUMI_GET_EMAIL() {
 }
 
 async function SAZUMI_GET_VERIFICATION_CODE(email) {
-    const SAZUMI_MAX_ATTEMPTS = 5;
+    const SAZUMI_MAX_ATTEMPTS = 30;
     let SAZUMI_ATTEMPTS = 0;
     
     while (SAZUMI_ATTEMPTS < SAZUMI_MAX_ATTEMPTS) {
@@ -73,7 +101,7 @@ async function SAZUMI_GET_VERIFICATION_CODE(email) {
         await new Promise(resolve => setTimeout(resolve, 3000));
     }
     
-    throw new Error('Verification code not received after 5 attempts');
+    throw new Error('Verification code not received');
 }
 
 function SAZUMI_GENERATE_PASSWORD() {
@@ -85,35 +113,9 @@ function SAZUMI_GENERATE_PASSWORD() {
     return SAZUMI_PASSWORD;
 }
 
-function SAZUMI_LOAD_PROXIES() {
-    try {
-        const SAZUMI_PROXY_DATA = fs.readFileSync('proxy.txt', 'utf8');
-        SAZUMI_PROXIES = SAZUMI_PROXY_DATA.trim().split('\n').filter(proxy => proxy.trim());
-        console.log(`[INFO] Loaded ${SAZUMI_PROXIES.length} proxies`);
-        SAZUMI_PROXIES.forEach(proxy => {
-            SAZUMI_PROXY_USAGE[proxy] = 0;
-        });
-    } catch (error) {
-        console.log(`[ERROR] Failed to load proxies: ${error.message}`);
-        process.exit(1);
-    }
-}
-
-function SAZUMI_GET_NEXT_PROXY() {
-    while (SAZUMI_PROXY_INDEX < SAZUMI_PROXIES.length) {
-        const SAZUMI_CURRENT_PROXY = SAZUMI_PROXIES[SAZUMI_PROXY_INDEX];
-        if (SAZUMI_PROXY_USAGE[SAZUMI_CURRENT_PROXY] < 9) {
-            SAZUMI_PROXY_USAGE[SAZUMI_CURRENT_PROXY]++;
-            console.log(`[INFO] Using proxy: ${SAZUMI_CURRENT_PROXY} (${SAZUMI_PROXY_USAGE[SAZUMI_CURRENT_PROXY]}/9)`);
-            return SAZUMI_CURRENT_PROXY;
-        }
-        SAZUMI_PROXY_INDEX++;
-    }
-    return null;
-}
-
-async function SAZUMI_INIT_DRIVER(proxy) {
-    console.log('[INFO] Initializing Chrome driver with proxy...');
+async function SAZUMI_INIT_DRIVER() {
+    const SAZUMI_PROXY = SAZUMI_GET_NEXT_PROXY();
+    console.log('[INFO] Initializing Chrome driver in headless mode...');
     const SAZUMI_OPTIONS = new chrome.Options();
     SAZUMI_OPTIONS.addArguments('--headless');
     SAZUMI_OPTIONS.addArguments('--no-sandbox');
@@ -122,19 +124,21 @@ async function SAZUMI_INIT_DRIVER(proxy) {
     SAZUMI_OPTIONS.addArguments('--disable-blink-features=AutomationControlled');
     SAZUMI_OPTIONS.addArguments('--window-size=1920,1080');
     SAZUMI_OPTIONS.addArguments('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    SAZUMI_OPTIONS.addArguments(`--proxy-server=http://${proxy}`);
+    SAZUMI_OPTIONS.addArguments(`--proxy-server=${SAZUMI_PROXY}`);
     
     SAZUMI_DRIVER = await new Builder()
         .forBrowser('chrome')
         .setChromeOptions(SAZUMI_OPTIONS)
         .build();
     
-    console.log('[INFO] Chrome driver initialized successfully with proxy');
+    console.log('[INFO] Chrome driver initialized successfully in background');
 }
 
 async function SAZUMI_AUTOMATION_PROCESS() {
     try {
         await SAZUMI_GET_IP_INFO();
+        
+        await SAZUMI_INIT_DRIVER();
         
         const SAZUMI_EMAIL = await SAZUMI_GET_EMAIL();
         
@@ -144,85 +148,34 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         
         console.log('[INFO] Clicking Login button...');
         const SAZUMI_LOGIN_BTN = await SAZUMI_DRIVER.wait(
-            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.xpath('//span[contains(text(), "Log in")]'))), 
-            15000
+            until.elementLocated(By.css('span.text-white.bg-theme')), 
+            10000
         );
         await SAZUMI_LOGIN_BTN.click();
+        await SAZUMI_DRIVER.wait(until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[name="account"]'))), 15000);
         
         console.log('[INFO] Entering email address...');
-        let SAZUMI_EMAIL_INPUT;
-        try {
-            SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
-                until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[name="account"]'))), 
-                15000
-            );
-        } catch (error) {
-            try {
-                SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
-                    until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[placeholder="Email"]'))), 
-                    10000
-                );
-            } catch (error2) {
-                SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
-                    until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[type="text"]'))), 
-                    10000
-                );
-            }
-        }
+        const SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
+            until.elementLocated(By.css('input[name="account"]')), 
+            10000
+        );
         await SAZUMI_EMAIL_INPUT.clear();
         await SAZUMI_EMAIL_INPUT.sendKeys(SAZUMI_EMAIL);
         
-        await SAZUMI_DRIVER.sleep(3000);
-        
         console.log('[INFO] Clicking Send button...');
-        let SAZUMI_SEND_BTN;
-        try {
-            SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                until.elementLocated(By.xpath('//span[text()="Send"]/parent::button')), 
-                15000
-            );
-        } catch (error) {
-            try {
-                SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                    until.elementLocated(By.xpath('//span[contains(text(), "Send")]/parent::button')), 
-                    10000
-                );
-            } catch (error2) {
-                try {
-                    SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                        until.elementLocated(By.css('button.absolute')), 
-                        10000
-                    );
-                } catch (error3) {
-                    try {
-                        SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                            until.elementLocated(By.css('button.cursor-pointer')), 
-                            10000
-                        );
-                    } catch (error4) {
-                        SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                            until.elementLocated(By.css('input[name="account"] + button, input[name="account"] ~ button')), 
-                            10000
-                        );
-                    }
-                }
-            }
-        }
-        await SAZUMI_DRIVER.executeScript('arguments[0].scrollIntoView({block: "center"});', SAZUMI_SEND_BTN);
-        await SAZUMI_DRIVER.wait(until.elementIsEnabled(SAZUMI_SEND_BTN), 5000);
-        try {
-            await SAZUMI_SEND_BTN.click();
-        } catch (clickError) {
-            await SAZUMI_DRIVER.executeScript('arguments[0].click();', SAZUMI_SEND_BTN);
-        }
+        const SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
+            until.elementLocated(By.css('button span.text-theme')), 
+            10000
+        );
+        await SAZUMI_SEND_BTN.click();
         
         console.log('[INFO] Waiting for verification code...');
         const SAZUMI_CODE = await SAZUMI_GET_VERIFICATION_CODE(SAZUMI_EMAIL);
         
         console.log('[INFO] Entering verification code...');
         const SAZUMI_CODE_INPUT = await SAZUMI_DRIVER.wait(
-            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[name="captcha"]'))), 
-            15000
+            until.elementLocated(By.css('input[name="captcha"]')), 
+            10000
         );
         await SAZUMI_CODE_INPUT.clear();
         await SAZUMI_CODE_INPUT.sendKeys(SAZUMI_CODE);
@@ -232,16 +185,16 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         
         console.log('[INFO] Entering password...');
         const SAZUMI_PASSWORD_INPUT = await SAZUMI_DRIVER.wait(
-            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.css('input[placeholder="Password"][name="password"]'))), 
-            15000
+            until.elementLocated(By.css('input[name="password"]')), 
+            10000
         );
         await SAZUMI_PASSWORD_INPUT.clear();
         await SAZUMI_PASSWORD_INPUT.sendKeys(SAZUMI_PASSWORD);
         
         console.log('[INFO] Clicking Sign up button...');
         const SAZUMI_SIGNUP_BTN = await SAZUMI_DRIVER.wait(
-            until.elementIsVisible(SAZUMI_DRIVER.findElement(By.id('loginRegisterBtn'))), 
-            15000
+            until.elementLocated(By.id('loginRegisterBtn')), 
+            10000
         );
         await SAZUMI_SIGNUP_BTN.click();
         
@@ -252,11 +205,8 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         console.log(`[INFO] Password: ${SAZUMI_PASSWORD}`);
         console.log(`[INFO] Username: ${SAZUMI_EMAIL_DATA.username}`);
         
-        return true;
-        
     } catch (error) {
         console.log(`[ERROR] Automation failed: ${error.message}`);
-        return false;
     } finally {
         if (SAZUMI_DRIVER) {
             await SAZUMI_DRIVER.quit();
@@ -268,30 +218,18 @@ async function SAZUMI_AUTOMATION_PROCESS() {
 async function SAZUMI_CONTINUOUS_PROCESS() {
     SAZUMI_LOAD_PROXIES();
     
-    while (true) {
-        const SAZUMI_CURRENT_PROXY = SAZUMI_GET_NEXT_PROXY();
-        
-        if (!SAZUMI_CURRENT_PROXY) {
-            console.log('[INFO] All proxies exhausted. Stopping automation.');
-            break;
-        }
-        
+    while (SAZUMI_PROXY_INDEX < SAZUMI_PROXIES.length) {
         try {
-            await SAZUMI_INIT_DRIVER(SAZUMI_CURRENT_PROXY);
-            const SAZUMI_SUCCESS = await SAZUMI_AUTOMATION_PROCESS();
-            
-            if (SAZUMI_SUCCESS) {
-                console.log('[INFO] Account creation successful. Starting next cycle...');
-            } else {
-                console.log('[INFO] Account creation failed. Retrying with same proxy...');
-            }
-            
+            await SAZUMI_AUTOMATION_PROCESS();
+            console.log('[INFO] Account created successfully, starting next cycle...');
         } catch (error) {
-            console.log(`[ERROR] Process error: ${error.message}. Retrying...`);
+            console.log(`[ERROR] Cycle failed: ${error.message}, retrying...`);
         }
         
         await new Promise(resolve => setTimeout(resolve, 2000));
     }
+    
+    console.log('[INFO] All proxies exhausted, stopping automation');
 }
 
 SAZUMI_APP.listen(SAZUMI_PORT, () => {
