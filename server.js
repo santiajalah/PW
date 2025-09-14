@@ -47,7 +47,7 @@ async function SAZUMI_GET_EMAIL() {
 }
 
 async function SAZUMI_GET_VERIFICATION_CODE(email) {
-    const SAZUMI_MAX_ATTEMPTS = 30;
+    const SAZUMI_MAX_ATTEMPTS = 5;
     let SAZUMI_ATTEMPTS = 0;
     
     while (SAZUMI_ATTEMPTS < SAZUMI_MAX_ATTEMPTS) {
@@ -73,7 +73,7 @@ async function SAZUMI_GET_VERIFICATION_CODE(email) {
         await new Promise(resolve => setTimeout(resolve, 3000));
     }
     
-    throw new Error('Verification code not received');
+    throw new Error('Verification code not received after 5 attempts');
 }
 
 function SAZUMI_GENERATE_PASSWORD() {
@@ -176,20 +176,27 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         let SAZUMI_SEND_BTN;
         try {
             SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                until.elementLocated(By.css('button[type="button"]')), 
+                until.elementLocated(By.css('button.absolute.top-0.right-0')), 
                 15000
             );
         } catch (error) {
             try {
                 SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                    until.elementLocated(By.xpath('//span[contains(text(), "Send")]')), 
+                    until.elementLocated(By.xpath('//button[contains(@class, "absolute") and contains(@class, "right-0")]')), 
                     10000
                 );
             } catch (error2) {
-                SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                    until.elementLocated(By.css('button')), 
-                    10000
-                );
+                try {
+                    SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
+                        until.elementLocated(By.xpath('//span[contains(text(), "Send")]/..')), 
+                        10000
+                    );
+                } catch (error3) {
+                    SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
+                        until.elementLocated(By.css('button[type="button"]')), 
+                        10000
+                    );
+                }
             }
         }
         await SAZUMI_DRIVER.executeScript('arguments[0].scrollIntoView({block: "center"});', SAZUMI_SEND_BTN);
