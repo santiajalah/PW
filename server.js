@@ -2,7 +2,6 @@ const express = require('express');
 const { Builder, By, until } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
 const axios = require('axios');
-const fs = require('fs');
 
 const SAZUMI_APP = express();
 const SAZUMI_PORT = 3000;
@@ -10,53 +9,23 @@ const SAZUMI_PORT = 3000;
 const SAZUMI_EMAIL_API = 'https://dumdaduma.zeabur.app/new-email';
 const SAZUMI_MSG_API = 'https://dumdaduma.zeabur.app/msg';
 const SAZUMI_TARGET_URL = 'https://wangxutechnologyhkcolimited.pxf.io/MAzYVP';
+const SAZUMI_IP_API = 'https://ipinfo.io/json';
 
 let SAZUMI_DRIVER;
 let SAZUMI_EMAIL_DATA;
-let SAZUMI_PROXIES = [];
-let SAZUMI_PROXY_USAGE = new Map();
-let SAZUMI_CURRENT_PROXY_INDEX = 0;
 
-function SAZUMI_LOAD_PROXIES() {
+async function SAZUMI_GET_IP_INFO() {
     try {
-        const SAZUMI_PROXY_DATA = fs.readFileSync('proxy.txt', 'utf8');
-        SAZUMI_PROXIES = SAZUMI_PROXY_DATA.split('\n').filter(line => line.trim());
-        console.log(`[INFO] Loaded ${SAZUMI_PROXIES.length} proxies`);
-    } catch (error) {
-        console.log(`[ERROR] Failed to load proxies: ${error.message}`);
-        process.exit(1);
-    }
-}
-
-function SAZUMI_GET_NEXT_PROXY() {
-    while (SAZUMI_CURRENT_PROXY_INDEX < SAZUMI_PROXIES.length) {
-        const SAZUMI_PROXY = SAZUMI_PROXIES[SAZUMI_CURRENT_PROXY_INDEX];
-        const SAZUMI_USAGE_COUNT = SAZUMI_PROXY_USAGE.get(SAZUMI_PROXY) || 0;
-        
-        if (SAZUMI_USAGE_COUNT < 9) {
-            SAZUMI_PROXY_USAGE.set(SAZUMI_PROXY, SAZUMI_USAGE_COUNT + 1);
-            console.log(`[INFO] Using proxy: ${SAZUMI_PROXY} (Usage: ${SAZUMI_USAGE_COUNT + 1}/9)`);
-            return SAZUMI_PROXY;
-        }
-        
-        SAZUMI_CURRENT_PROXY_INDEX++;
-    }
-    
-    return null;
-}
-
-async function SAZUMI_CHECK_IP() {
-    try {
-        console.log('[INFO] Checking current IP address...');
-        const SAZUMI_IP_RESPONSE = await axios.get('https://ipinfo.io/json');
-        const SAZUMI_IP_DATA = SAZUMI_IP_RESPONSE.data;
+        console.log('[INFO] Getting current IP information...');
+        const SAZUMI_RESPONSE = await axios.get(SAZUMI_IP_API);
+        const SAZUMI_IP_DATA = SAZUMI_RESPONSE.data;
         console.log(`[INFO] Current IP: ${SAZUMI_IP_DATA.ip}`);
         console.log(`[INFO] Location: ${SAZUMI_IP_DATA.city}, ${SAZUMI_IP_DATA.region}, ${SAZUMI_IP_DATA.country}`);
         console.log(`[INFO] ISP: ${SAZUMI_IP_DATA.org}`);
         return SAZUMI_IP_DATA;
     } catch (error) {
-        console.log(`[ERROR] Failed to check IP: ${error.message}`);
-        return null;
+        console.log(`[ERROR] Failed to get IP info: ${error.message}`);
+        throw error;
     }
 }
 
@@ -113,12 +82,7 @@ function SAZUMI_GENERATE_PASSWORD() {
 }
 
 async function SAZUMI_INIT_DRIVER() {
-    const SAZUMI_PROXY = SAZUMI_GET_NEXT_PROXY();
-    if (!SAZUMI_PROXY) {
-        throw new Error('No available proxies');
-    }
-    
-    console.log('[INFO] Initializing Chrome driver with proxy...');
+    console.log('[INFO] Initializing Chrome driver in headless mode...');
     const SAZUMI_OPTIONS = new chrome.Options();
     SAZUMI_OPTIONS.addArguments('--headless');
     SAZUMI_OPTIONS.addArguments('--no-sandbox');
@@ -127,18 +91,19 @@ async function SAZUMI_INIT_DRIVER() {
     SAZUMI_OPTIONS.addArguments('--disable-blink-features=AutomationControlled');
     SAZUMI_OPTIONS.addArguments('--window-size=1920,1080');
     SAZUMI_OPTIONS.addArguments('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    SAZUMI_OPTIONS.addArguments(`--proxy-server=http://${SAZUMI_PROXY}`);
     
     SAZUMI_DRIVER = await new Builder()
         .forBrowser('chrome')
         .setChromeOptions(SAZUMI_OPTIONS)
         .build();
     
-    console.log('[INFO] Chrome driver initialized with proxy');
+    console.log('[INFO] Chrome driver initialized successfully in background');
 }
 
 async function SAZUMI_AUTOMATION_PROCESS() {
     try {
+        await SAZUMI_GET_IP_INFO();
+        
         await SAZUMI_INIT_DRIVER();
         
         const SAZUMI_EMAIL = await SAZUMI_GET_EMAIL();
@@ -206,11 +171,8 @@ async function SAZUMI_AUTOMATION_PROCESS() {
         console.log(`[INFO] Password: ${SAZUMI_PASSWORD}`);
         console.log(`[INFO] Username: ${SAZUMI_EMAIL_DATA.username}`);
         
-        return true;
-        
     } catch (error) {
         console.log(`[ERROR] Automation failed: ${error.message}`);
-        return false;
     } finally {
         if (SAZUMI_DRIVER) {
             await SAZUMI_DRIVER.quit();
@@ -219,44 +181,10 @@ async function SAZUMI_AUTOMATION_PROCESS() {
     }
 }
 
-async function SAZUMI_CONTINUOUS_AUTOMATION() {
-    let SAZUMI_ACCOUNT_COUNT = 0;
-    
-    await SAZUMI_CHECK_IP();
-    
-    while (true) {
-        try {
-            const SAZUMI_RESULT = await SAZUMI_AUTOMATION_PROCESS();
-            
-            if (SAZUMI_RESULT) {
-                SAZUMI_ACCOUNT_COUNT++;
-                console.log(`[INFO] Total accounts created: ${SAZUMI_ACCOUNT_COUNT}`);
-                await SAZUMI_CHECK_IP();
-            }
-            
-            console.log('[INFO] Starting next automation cycle...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-        } catch (error) {
-            if (error.message === 'No available proxies') {
-                console.log('[INFO] All proxies exhausted. Stopping automation.');
-                break;
-            }
-            
-            console.log(`[ERROR] Cycle failed: ${error.message}`);
-            console.log('[INFO] Retrying in 3 seconds...');
-            await new Promise(resolve => setTimeout(resolve, 3000));
-        }
-    }
-    
-    console.log(`[INFO] Automation completed. Total accounts created: ${SAZUMI_ACCOUNT_COUNT}`);
-}
-
 SAZUMI_APP.listen(SAZUMI_PORT, () => {
     console.log(`[INFO] Server started on port ${SAZUMI_PORT}`);
-    console.log('[INFO] Loading proxies and starting continuous automation...');
-    SAZUMI_LOAD_PROXIES();
-    SAZUMI_CONTINUOUS_AUTOMATION();
+    console.log('[INFO] Starting PicWish automation...');
+    SAZUMI_AUTOMATION_PROCESS();
 });
 
 module.exports = SAZUMI_APP;
