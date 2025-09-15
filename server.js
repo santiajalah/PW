@@ -63,7 +63,7 @@ async function SAZUMI_GET_EMAIL() {
 }
 
 async function SAZUMI_GET_VERIFICATION_CODE(email) {
-    const SAZUMI_MAX_ATTEMPTS = 30;
+    const SAZUMI_MAX_ATTEMPTS = 5;
     let SAZUMI_ATTEMPTS = 0;
     
     while (SAZUMI_ATTEMPTS < SAZUMI_MAX_ATTEMPTS) {
