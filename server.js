@@ -6,6 +6,7 @@ const UserAgent = require('user-agents');
 
 const SAZUMI_APP = express();
 const SAZUMI_PORT = 3000;
+
 const SAZUMI_EMAIL_API = 'https://p01--emailtemp--nrrxdm82tt8g.code.run/new-email';
 const SAZUMI_MSG_API = 'https://p01--emailtemp--nrrxdm82tt8g.code.run/msg';
 const SAZUMI_TARGET_URL = 'https://wangxutechnologyhkcolimited.pxf.io/MAzYVP';
@@ -34,37 +35,49 @@ function SAZUMI_GET_RANDOM_VIEWPORT() {
 }
 
 async function SAZUMI_GET_IP_INFO() {
-    const SAZUMI_RESPONSE = await axios.get(SAZUMI_IP_API);
-    const SAZUMI_IP_DATA = SAZUMI_RESPONSE.data;
-    console.log(`[INFO] Current IP: ${SAZUMI_IP_DATA.ip}`);
-    console.log(`[INFO] Location: ${SAZUMI_IP_DATA.city}, ${SAZUMI_IP_DATA.region}, ${SAZUMI_IP_DATA.country}`);
-    console.log(`[INFO] ISP: ${SAZUMI_IP_DATA.org}`);
-    return SAZUMI_IP_DATA;
+    try {
+        const SAZUMI_RESPONSE = await axios.get(SAZUMI_IP_API);
+        const SAZUMI_IP_DATA = SAZUMI_RESPONSE.data;
+        console.log(`[INFO] Current IP: ${SAZUMI_IP_DATA.ip}`);
+        console.log(`[INFO] Location: ${SAZUMI_IP_DATA.city}, ${SAZUMI_IP_DATA.region}, ${SAZUMI_IP_DATA.country}`);
+        console.log(`[INFO] ISP: ${SAZUMI_IP_DATA.org}`);
+        return SAZUMI_IP_DATA;
+    } catch (error) {
+        console.log(`[ERROR] Failed to get IP info: ${error.message}`);
+        throw error;
+    }
 }
 
 async function SAZUMI_GET_EMAIL() {
-    const SAZUMI_RESPONSE = await axios.get(SAZUMI_EMAIL_API);
-    SAZUMI_EMAIL_DATA = SAZUMI_RESPONSE.data;
-    console.log(`[INFO] Email obtained: ${SAZUMI_EMAIL_DATA.email}`);
-    return SAZUMI_EMAIL_DATA.email;
+    try {
+        const SAZUMI_RESPONSE = await axios.get(SAZUMI_EMAIL_API);
+        SAZUMI_EMAIL_DATA = SAZUMI_RESPONSE.data;
+        console.log(`[INFO] Email obtained: ${SAZUMI_EMAIL_DATA.email}`);
+        return SAZUMI_EMAIL_DATA.email;
+    } catch (error) {
+        console.log(`[ERROR] Failed to get email: ${error.message}`);
+        throw error;
+    }
 }
 
 async function SAZUMI_GET_VERIFICATION_CODE(email) {
     const SAZUMI_MAX_ATTEMPTS = 5;
     let SAZUMI_ATTEMPTS = 0;
     while (SAZUMI_ATTEMPTS < SAZUMI_MAX_ATTEMPTS) {
-        const SAZUMI_RESPONSE = await axios.get(`${SAZUMI_MSG_API}?email=${email}`);
-        if (SAZUMI_RESPONSE.data && SAZUMI_RESPONSE.data.message) {
-            const SAZUMI_MESSAGE = SAZUMI_RESPONSE.data.message;
-            const SAZUMI_CODE_MATCH = SAZUMI_MESSAGE.match(/(\d{4})/);
-            if (SAZUMI_CODE_MATCH) {
-                const SAZUMI_CODE = SAZUMI_CODE_MATCH[1];
-                console.log(`[INFO] Verification code found: ${SAZUMI_CODE}`);
-                return SAZUMI_CODE;
+        try {
+            const SAZUMI_RESPONSE = await axios.get(`${SAZUMI_MSG_API}?email=${email}`);
+            if (SAZUMI_RESPONSE.data && SAZUMI_RESPONSE.data.message) {
+                const SAZUMI_MESSAGE = SAZUMI_RESPONSE.data.message;
+                const SAZUMI_CODE_MATCH = SAZUMI_MESSAGE.match(/(\d{4})/);
+                if (SAZUMI_CODE_MATCH) {
+                    const SAZUMI_CODE = SAZUMI_CODE_MATCH[1];
+                    console.log(`[INFO] Verification code found: ${SAZUMI_CODE}`);
+                    return SAZUMI_CODE;
+                }
             }
-        }
+        } catch (error) {}
         SAZUMI_ATTEMPTS++;
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(resolve => setTimeout(resolve, 3000));
     }
     return null;
 }
@@ -104,9 +117,14 @@ async function SAZUMI_INIT_DRIVER() {
     }
 }
 
-async function SAZUMI_CLEAR_COOKIES() {
-    if (SAZUMI_DRIVER) {
+async function SAZUMI_CLEAR_BROWSER_DATA() {
+    try {
         await SAZUMI_DRIVER.manage().deleteAllCookies();
+        await SAZUMI_DRIVER.executeScript('window.localStorage.clear();');
+        await SAZUMI_DRIVER.executeScript('window.sessionStorage.clear();');
+        console.log('[INFO] Browser data cleared');
+    } catch (error) {
+        console.log(`[ERROR] Failed to clear browser data: ${error.message}`);
     }
 }
 
@@ -114,7 +132,8 @@ async function SAZUMI_SINGLE_REGISTRATION() {
     let success = false;
     try {
         await SAZUMI_INIT_DRIVER();
-        await SAZUMI_CLEAR_COOKIES();
+        await SAZUMI_CLEAR_BROWSER_DATA();
+        
         const SAZUMI_EMAIL = await SAZUMI_GET_EMAIL();
         await SAZUMI_DRIVER.get(SAZUMI_TARGET_URL);
         await SAZUMI_DRIVER.sleep(3000);
