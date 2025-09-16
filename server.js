@@ -75,9 +75,7 @@ async function SAZUMI_GET_VERIFICATION_CODE(email) {
                     return SAZUMI_CODE;
                 }
             }
-        } catch (error) {
-            // ignore
-        }
+        } catch (error) {}
         SAZUMI_ATTEMPTS++;
         await new Promise(resolve => setTimeout(resolve, 3000));
     }
