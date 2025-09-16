@@ -115,10 +115,21 @@ async function SAZUMI_INIT_DRIVER() {
     await SAZUMI_DRIVER.executeScript("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
 }
 
+async function SAZUMI_CLEAR_BROWSER_DATA() {
+    try {
+        await SAZUMI_DRIVER.manage().deleteAllCookies();
+        await SAZUMI_DRIVER.executeScript("localStorage.clear();");
+        await SAZUMI_DRIVER.executeScript("sessionStorage.clear();");
+        console.log('[INFO] Browser data cleared');
+    } catch (error) {
+        console.log(`[ERROR] Failed to clear browser data: ${error.message}`);
+    }
+}
+
 async function SAZUMI_SINGLE_REGISTRATION() {
     let success = false;
     try {
-        await SAZUMI_INIT_DRIVER();
+        await SAZUMI_CLEAR_BROWSER_DATA();
         const SAZUMI_EMAIL = await SAZUMI_GET_EMAIL();
         await SAZUMI_DRIVER.get(SAZUMI_TARGET_URL);
         await SAZUMI_DRIVER.sleep(3000);
@@ -161,17 +172,14 @@ async function SAZUMI_SINGLE_REGISTRATION() {
         success = true;
     } catch (error) {
         console.log(`[ERROR] Registration failed: ${error.message}`);
-    } finally {
-        if (SAZUMI_DRIVER) {
-            await SAZUMI_DRIVER.quit();
-            console.log('[INFO] Browser closed');
-        }
     }
     return success;
 }
 
 async function SAZUMI_CONTINUOUS_REGISTRATION() {
     await SAZUMI_GET_IP_INFO();
+    await SAZUMI_INIT_DRIVER();
+    console.log('[INFO] Browser initialized once');
     while (true) {
         const result = await SAZUMI_SINGLE_REGISTRATION();
         if (result) {
