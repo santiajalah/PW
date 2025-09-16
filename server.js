@@ -3,6 +3,7 @@ const { Builder, By, until } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
 const axios = require('axios');
 const UserAgent = require('user-agents');
+const os = require('os');
 
 const SAZUMI_APP = express();
 const SAZUMI_PORT = 3000;
@@ -12,7 +13,6 @@ const SAZUMI_MSG_API = 'https://p01--emailtemp--nrrxdm82tt8g.code.run/msg';
 const SAZUMI_TARGET_URL = 'https://wangxutechnologyhkcolimited.pxf.io/MAzYVP';
 const SAZUMI_IP_API = 'https://ipinfo.io/json';
 
-let SAZUMI_DRIVER;
 let SAZUMI_EMAIL_DATA;
 
 function SAZUMI_RANDOM_DELAY() {
@@ -44,7 +44,7 @@ async function SAZUMI_GET_IP_INFO() {
         return SAZUMI_IP_DATA;
     } catch (error) {
         console.log(`[ERROR] Failed to get IP info: ${error.message}`);
-        throw error;
+        return null;
     }
 }
 
@@ -61,7 +61,7 @@ async function SAZUMI_GET_EMAIL() {
 }
 
 async function SAZUMI_GET_VERIFICATION_CODE(email) {
-    const SAZUMI_MAX_ATTEMPTS = 5;
+    const SAZUMI_MAX_ATTEMPTS = 7;
     let SAZUMI_ATTEMPTS = 0;
     while (SAZUMI_ATTEMPTS < SAZUMI_MAX_ATTEMPTS) {
         try {
@@ -77,7 +77,7 @@ async function SAZUMI_GET_VERIFICATION_CODE(email) {
             }
         } catch (error) {}
         SAZUMI_ATTEMPTS++;
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise(resolve => setTimeout(resolve, 3500));
     }
     return null;
 }
@@ -108,52 +108,64 @@ async function SAZUMI_INIT_DRIVER() {
     SAZUMI_OPTIONS.addArguments('--disable-features=VizDisplayCompositor');
     SAZUMI_OPTIONS.addArguments('--disable-extensions');
     SAZUMI_OPTIONS.excludeSwitches(['enable-automation']);
-    SAZUMI_DRIVER = await new Builder()
+    let driver = await new Builder()
         .forBrowser('chrome')
         .setChromeOptions(SAZUMI_OPTIONS)
         .build();
-    await SAZUMI_DRIVER.executeScript("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
+    await driver.executeScript("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
+    return driver;
+}
+
+// Resource monitor (log RAM & CPU usage)
+function logResourceUsage() {
+    const mem = process.memoryUsage();
+    const cpu = os.loadavg();
+    const totalMem = os.totalmem();
+    const usedMemMB = Math.round(mem.rss / 1024 / 1024);
+    const totalMemMB = Math.round(totalMem / 1024 / 1024);
+    console.log(`[MONITOR] RAM: ${usedMemMB}MB/${totalMemMB}MB | CPU load: [1m ${cpu[0].toFixed(2)}, 5m ${cpu[1].toFixed(2)}, 15m ${cpu[2].toFixed(2)}]`);
 }
 
 async function SAZUMI_SINGLE_REGISTRATION() {
     let success = false;
+    let driver = null;
     try {
-        await SAZUMI_INIT_DRIVER();
+        driver = await SAZUMI_INIT_DRIVER();
         const SAZUMI_EMAIL = await SAZUMI_GET_EMAIL();
-        await SAZUMI_DRIVER.get(SAZUMI_TARGET_URL);
-        await SAZUMI_DRIVER.sleep(3000);
-        const SAZUMI_LOGIN_BTN = await SAZUMI_DRIVER.wait(
+        await driver.get(SAZUMI_TARGET_URL);
+        await driver.sleep(3000);
+        const SAZUMI_LOGIN_BTN = await driver.wait(
             until.elementLocated(By.css('span.text-white.bg-theme')), 10000
         );
         await SAZUMI_LOGIN_BTN.click();
-        await SAZUMI_DRIVER.sleep(2000);
-        const SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
+        await driver.sleep(2000);
+        const SAZUMI_EMAIL_INPUT = await driver.wait(
             until.elementLocated(By.css('input[name="account"]')), 10000
         );
         await SAZUMI_EMAIL_INPUT.clear();
         await SAZUMI_EMAIL_INPUT.sendKeys(SAZUMI_EMAIL);
-        const SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
+        const SAZUMI_SEND_BTN = await driver.wait(
             until.elementLocated(By.css('button span.text-theme')), 10000
         );
         await SAZUMI_SEND_BTN.click();
         const SAZUMI_CODE = await SAZUMI_GET_VERIFICATION_CODE(SAZUMI_EMAIL);
         if (!SAZUMI_CODE) throw new Error('No verification code');
-        const SAZUMI_CODE_INPUT = await SAZUMI_DRIVER.wait(
+        const SAZUMI_CODE_INPUT = await driver.wait(
             until.elementLocated(By.css('input[name="captcha"]')), 10000
         );
         await SAZUMI_CODE_INPUT.clear();
         await SAZUMI_CODE_INPUT.sendKeys(SAZUMI_CODE);
         const SAZUMI_PASSWORD = SAZUMI_GENERATE_PASSWORD();
-        const SAZUMI_PASSWORD_INPUT = await SAZUMI_DRIVER.wait(
+        const SAZUMI_PASSWORD_INPUT = await driver.wait(
             until.elementLocated(By.css('input[name="password"]')), 10000
         );
         await SAZUMI_PASSWORD_INPUT.clear();
         await SAZUMI_PASSWORD_INPUT.sendKeys(SAZUMI_PASSWORD);
-        const SAZUMI_SIGNUP_BTN = await SAZUMI_DRIVER.wait(
+        const SAZUMI_SIGNUP_BTN = await driver.wait(
             until.elementLocated(By.id('loginRegisterBtn')), 10000
         );
         await SAZUMI_SIGNUP_BTN.click();
-        await SAZUMI_DRIVER.sleep(5000);
+        await driver.sleep(5000);
         console.log('[INFO] SUCCESS - Account created successfully!');
         console.log(`[INFO] Email: ${SAZUMI_EMAIL}`);
         console.log(`[INFO] Password: ${SAZUMI_PASSWORD}`);
@@ -162,25 +174,58 @@ async function SAZUMI_SINGLE_REGISTRATION() {
     } catch (error) {
         console.log(`[ERROR] Registration failed: ${error.message}`);
     } finally {
-        if (SAZUMI_DRIVER) {
-            await SAZUMI_DRIVER.quit();
-            console.log('[INFO] Browser closed');
+        if (driver) {
+            try {
+                await driver.quit();
+                console.log('[INFO] Browser closed');
+            } catch (e) {
+                console.log('[ERROR] Browser quit failed:', e.message);
+            }
         }
+        driver = null; // help GC
     }
     return success;
 }
 
 async function SAZUMI_CONTINUOUS_REGISTRATION() {
     await SAZUMI_GET_IP_INFO();
+    let loop = 0;
+    let errorStreak = 0;
+    const MAX_ERROR_STREAK = 10; // prevent infinite loop error
     while (true) {
+        logResourceUsage();
         const result = await SAZUMI_SINGLE_REGISTRATION();
+        loop++;
         if (result) {
+            errorStreak = 0;
             const SAZUMI_NEXT_DELAY = SAZUMI_RANDOM_DELAY();
             console.log(`[INFO] Waiting ${SAZUMI_NEXT_DELAY / 1000} seconds before next registration...`);
             await new Promise(resolve => setTimeout(resolve, SAZUMI_NEXT_DELAY));
+        } else {
+            errorStreak++;
+            const failDelay = 8000 + Math.floor(Math.random() * 4000); // 8-12 detik
+            console.log(`[WARN] Waiting ${failDelay / 1000}s after fail... (error streak: ${errorStreak})`);
+            await new Promise(resolve => setTimeout(resolve, failDelay));
+            if (errorStreak >= MAX_ERROR_STREAK) {
+                console.log(`[FATAL] Too many consecutive errors, terminating loop for safety.`);
+                break;
+            }
         }
+        if (loop % 10 === 0) logResourceUsage();
     }
 }
+
+// Simple status endpoint
+SAZUMI_APP.get('/status', (req, res) => {
+    const mem = process.memoryUsage();
+    res.json({
+        rssMB: Math.round(mem.rss / 1024 / 1024),
+        uptime: process.uptime(),
+        loadavg: os.loadavg(),
+        platform: process.platform,
+        arch: process.arch
+    });
+});
 
 SAZUMI_APP.listen(SAZUMI_PORT, () => {
     console.log(`[INFO] Server started on port ${SAZUMI_PORT}`);
