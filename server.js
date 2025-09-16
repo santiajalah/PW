@@ -3,6 +3,7 @@ const { Builder, By, until } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
 const axios = require('axios');
 const UserAgent = require('user-agents');
+const fs = require('fs');
 
 const SAZUMI_APP = express();
 const SAZUMI_PORT = 3000;
@@ -14,6 +15,37 @@ const SAZUMI_IP_API = 'https://ipinfo.io/json';
 
 let SAZUMI_DRIVER;
 let SAZUMI_EMAIL_DATA;
+let SAZUMI_PROXY_LIST = [];
+let SAZUMI_CURRENT_PROXY_INDEX = 0;
+let SAZUMI_ACCOUNT_COUNT_PER_PROXY = 0;
+let SAZUMI_MAX_ACCOUNTS_PER_PROXY = 9;
+
+function SAZUMI_LOAD_PROXIES() {
+    try {
+        const SAZUMI_PROXY_DATA = fs.readFileSync('proxy.txt', 'utf8');
+        SAZUMI_PROXY_LIST = SAZUMI_PROXY_DATA.split('\n').filter(line => line.trim() !== '');
+        console.log(`[INFO] Loaded ${SAZUMI_PROXY_LIST.length} proxies`);
+    } catch (error) {
+        console.log(`[ERROR] Failed to load proxies: ${error.message}`);
+        SAZUMI_PROXY_LIST = [];
+    }
+}
+
+function SAZUMI_GET_CURRENT_PROXY() {
+    if (SAZUMI_PROXY_LIST.length === 0) return null;
+    return SAZUMI_PROXY_LIST[SAZUMI_CURRENT_PROXY_INDEX];
+}
+
+function SAZUMI_SWITCH_TO_NEXT_PROXY() {
+    SAZUMI_CURRENT_PROXY_INDEX++;
+    SAZUMI_ACCOUNT_COUNT_PER_PROXY = 0;
+    if (SAZUMI_CURRENT_PROXY_INDEX >= SAZUMI_PROXY_LIST.length) {
+        console.log('[INFO] All proxies used. Pausing registration...');
+        return false;
+    }
+    console.log(`[INFO] Switched to proxy ${SAZUMI_CURRENT_PROXY_INDEX + 1}/${SAZUMI_PROXY_LIST.length}`);
+    return true;
+}
 
 function SAZUMI_RANDOM_DELAY() {
     const SAZUMI_MIN = 10000;
@@ -102,8 +134,11 @@ function SAZUMI_GENERATE_PASSWORD() {
 async function SAZUMI_INIT_DRIVER() {
     const SAZUMI_USER_AGENT = SAZUMI_GET_RANDOM_USER_AGENT();
     const SAZUMI_VIEWPORT = SAZUMI_GET_RANDOM_VIEWPORT();
+    const SAZUMI_CURRENT_PROXY = SAZUMI_GET_CURRENT_PROXY();
+    
     console.log(`[INFO] Initializing browser with User Agent: ${SAZUMI_USER_AGENT}`);
     console.log(`[INFO] Using Viewport: ${SAZUMI_VIEWPORT.width}x${SAZUMI_VIEWPORT.height}`);
+    console.log(`[INFO] Using Proxy: ${SAZUMI_CURRENT_PROXY || 'None'}`);
     
     const SAZUMI_OPTIONS = new chrome.Options();
     SAZUMI_OPTIONS.addArguments('--headless');
@@ -118,6 +153,10 @@ async function SAZUMI_INIT_DRIVER() {
     SAZUMI_OPTIONS.addArguments('--disable-extensions');
     SAZUMI_OPTIONS.addArguments('--enable-local-storage');
     SAZUMI_OPTIONS.excludeSwitches(['enable-automation']);
+    
+    if (SAZUMI_CURRENT_PROXY) {
+        SAZUMI_OPTIONS.addArguments(`--proxy-server=${SAZUMI_CURRENT_PROXY}`);
+    }
     
     SAZUMI_DRIVER = await new Builder()
         .forBrowser('chrome')
@@ -222,13 +261,25 @@ async function SAZUMI_SINGLE_REGISTRATION() {
         console.log(`[INFO] Password: ${SAZUMI_PASSWORD}`);
         console.log(`[INFO] Username: ${SAZUMI_EMAIL_DATA.username}`);
         success = true;
+        SAZUMI_ACCOUNT_COUNT_PER_PROXY++;
     } catch (error) {
         console.log(`[ERROR] Registration failed: ${error.message}`);
+        if (SAZUMI_DRIVER) {
+            await SAZUMI_DRIVER.quit();
+            SAZUMI_DRIVER = null;
+        }
     }
     return success;
 }
 
 async function SAZUMI_CONTINUOUS_REGISTRATION() {
+    SAZUMI_LOAD_PROXIES();
+    
+    if (SAZUMI_PROXY_LIST.length === 0) {
+        console.log('[ERROR] No proxies available. Please add proxies to proxy.txt');
+        return;
+    }
+    
     await SAZUMI_GET_IP_INFO();
     
     process.on('SIGINT', async () => {
@@ -241,7 +292,40 @@ async function SAZUMI_CONTINUOUS_REGISTRATION() {
     });
     
     while (true) {
+        if (SAZUMI_CURRENT_PROXY_INDEX >= SAZUMI_PROXY_LIST.length) {
+            console.log('[INFO] All proxies exhausted. Waiting for proxy.txt update...');
+            while (true) {
+                SAZUMI_LOAD_PROXIES();
+                if (SAZUMI_PROXY_LIST.length > 0) {
+                    SAZUMI_CURRENT_PROXY_INDEX = 0;
+                    SAZUMI_ACCOUNT_COUNT_PER_PROXY = 0;
+                    console.log('[INFO] New proxies loaded. Resuming registration...');
+                    break;
+                }
+                await new Promise(resolve => setTimeout(resolve, 30000));
+            }
+        }
+        
         const result = await SAZUMI_SINGLE_REGISTRATION();
+        
+        if (result && SAZUMI_ACCOUNT_COUNT_PER_PROXY >= SAZUMI_MAX_ACCOUNTS_PER_PROXY) {
+            console.log(`[INFO] Reached ${SAZUMI_MAX_ACCOUNTS_PER_PROXY} accounts for current proxy. Switching...`);
+            if (SAZUMI_DRIVER) {
+                await SAZUMI_DRIVER.quit();
+                SAZUMI_DRIVER = null;
+            }
+            SAZUMI_SWITCH_TO_NEXT_PROXY();
+        } else if (!result) {
+            console.log('[INFO] Registration failed. Switching to next proxy...');
+            if (SAZUMI_DRIVER) {
+                await SAZUMI_DRIVER.quit();
+                SAZUMI_DRIVER = null;
+            }
+            if (!SAZUMI_SWITCH_TO_NEXT_PROXY()) {
+                continue;
+            }
+        }
+        
         if (result) {
             const SAZUMI_NEXT_DELAY = SAZUMI_RANDOM_DELAY();
             console.log(`[INFO] Waiting ${SAZUMI_NEXT_DELAY / 1000} seconds before next registration...`);
