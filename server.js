@@ -92,79 +92,95 @@ function SAZUMI_GENERATE_PASSWORD() {
 }
 
 async function SAZUMI_INIT_DRIVER() {
-    const SAZUMI_USER_AGENT = SAZUMI_GET_RANDOM_USER_AGENT();
-    const SAZUMI_VIEWPORT = SAZUMI_GET_RANDOM_VIEWPORT();
-    console.log(`[INFO] Using User Agent: ${SAZUMI_USER_AGENT}`);
-    console.log(`[INFO] Using Viewport: ${SAZUMI_VIEWPORT}`);
-    const SAZUMI_OPTIONS = new chrome.Options();
-    SAZUMI_OPTIONS.addArguments('--headless');
-    SAZUMI_OPTIONS.addArguments('--no-sandbox');
-    SAZUMI_OPTIONS.addArguments('--disable-dev-shm-usage');
-    SAZUMI_OPTIONS.addArguments('--disable-gpu');
-    SAZUMI_OPTIONS.addArguments('--disable-blink-features=AutomationControlled');
-    SAZUMI_OPTIONS.addArguments(`--window-size=${SAZUMI_VIEWPORT}`);
-    SAZUMI_OPTIONS.addArguments(`--user-agent=${SAZUMI_USER_AGENT}`);
-    SAZUMI_OPTIONS.addArguments('--disable-web-security');
-    SAZUMI_OPTIONS.addArguments('--disable-features=VizDisplayCompositor');
-    SAZUMI_OPTIONS.addArguments('--disable-extensions');
-    SAZUMI_OPTIONS.excludeSwitches(['enable-automation']);
-    SAZUMI_DRIVER = await new Builder()
-        .forBrowser('chrome')
-        .setChromeOptions(SAZUMI_OPTIONS)
-        .build();
-    await SAZUMI_DRIVER.executeScript("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
+    if (!SAZUMI_DRIVER) {
+        const SAZUMI_OPTIONS = new chrome.Options();
+        SAZUMI_OPTIONS.addArguments('--headless');
+        SAZUMI_OPTIONS.addArguments('--no-sandbox');
+        SAZUMI_OPTIONS.addArguments('--disable-dev-shm-usage');
+        SAZUMI_OPTIONS.addArguments('--disable-gpu');
+        SAZUMI_OPTIONS.addArguments('--disable-blink-features=AutomationControlled');
+        SAZUMI_OPTIONS.addArguments('--disable-web-security');
+        SAZUMI_OPTIONS.addArguments('--disable-features=VizDisplayCompositor');
+        SAZUMI_OPTIONS.addArguments('--disable-extensions');
+        SAZUMI_OPTIONS.excludeSwitches(['enable-automation']);
+        
+        SAZUMI_DRIVER = await new Builder()
+            .forBrowser('chrome')
+            .setChromeOptions(SAZUMI_OPTIONS)
+            .build();
+        
+        await SAZUMI_DRIVER.executeScript("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
+    }
 }
 
-async function SAZUMI_CLEAR_BROWSER_DATA() {
-    try {
-        await SAZUMI_DRIVER.manage().deleteAllCookies();
-        await SAZUMI_DRIVER.executeScript("localStorage.clear();");
-        await SAZUMI_DRIVER.executeScript("sessionStorage.clear();");
-        console.log('[INFO] Browser data cleared');
-    } catch (error) {
-        console.log(`[ERROR] Failed to clear browser data: ${error.message}`);
-    }
+async function SAZUMI_RESET_BROWSER_STATE() {
+    const SAZUMI_USER_AGENT = SAZUMI_GET_RANDOM_USER_AGENT();
+    const SAZUMI_VIEWPORT = SAZUMI_GET_RANDOM_VIEWPORT();
+    
+    console.log(`[INFO] Using User Agent: ${SAZUMI_USER_AGENT}`);
+    console.log(`[INFO] Using Viewport: ${SAZUMI_VIEWPORT}`);
+    
+    await SAZUMI_DRIVER.manage().deleteAllCookies();
+    await SAZUMI_DRIVER.executeScript('window.localStorage.clear();');
+    await SAZUMI_DRIVER.executeScript('window.sessionStorage.clear();');
+    await SAZUMI_DRIVER.executeScript(`Object.defineProperty(navigator, 'userAgent', {get: () => '${SAZUMI_USER_AGENT}'});`);
+    
+    const [SAZUMI_WIDTH, SAZUMI_HEIGHT] = SAZUMI_VIEWPORT.split(',');
+    await SAZUMI_DRIVER.manage().window().setRect({
+        width: parseInt(SAZUMI_WIDTH),
+        height: parseInt(SAZUMI_HEIGHT)
+    });
 }
 
 async function SAZUMI_SINGLE_REGISTRATION() {
     let success = false;
     try {
-        await SAZUMI_CLEAR_BROWSER_DATA();
+        await SAZUMI_INIT_DRIVER();
+        await SAZUMI_RESET_BROWSER_STATE();
+        
         const SAZUMI_EMAIL = await SAZUMI_GET_EMAIL();
         await SAZUMI_DRIVER.get(SAZUMI_TARGET_URL);
         await SAZUMI_DRIVER.sleep(3000);
+        
         const SAZUMI_LOGIN_BTN = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.css('span.text-white.bg-theme')), 10000
         );
         await SAZUMI_LOGIN_BTN.click();
         await SAZUMI_DRIVER.sleep(2000);
+        
         const SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.css('input[name="account"]')), 10000
         );
         await SAZUMI_EMAIL_INPUT.clear();
         await SAZUMI_EMAIL_INPUT.sendKeys(SAZUMI_EMAIL);
+        
         const SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.css('button span.text-theme')), 10000
         );
         await SAZUMI_SEND_BTN.click();
+        
         const SAZUMI_CODE = await SAZUMI_GET_VERIFICATION_CODE(SAZUMI_EMAIL);
         if (!SAZUMI_CODE) throw new Error('No verification code');
+        
         const SAZUMI_CODE_INPUT = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.css('input[name="captcha"]')), 10000
         );
         await SAZUMI_CODE_INPUT.clear();
         await SAZUMI_CODE_INPUT.sendKeys(SAZUMI_CODE);
+        
         const SAZUMI_PASSWORD = SAZUMI_GENERATE_PASSWORD();
         const SAZUMI_PASSWORD_INPUT = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.css('input[name="password"]')), 10000
         );
         await SAZUMI_PASSWORD_INPUT.clear();
         await SAZUMI_PASSWORD_INPUT.sendKeys(SAZUMI_PASSWORD);
+        
         const SAZUMI_SIGNUP_BTN = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.id('loginRegisterBtn')), 10000
         );
         await SAZUMI_SIGNUP_BTN.click();
         await SAZUMI_DRIVER.sleep(5000);
+        
         console.log('[INFO] SUCCESS - Account created successfully!');
         console.log(`[INFO] Email: ${SAZUMI_EMAIL}`);
         console.log(`[INFO] Password: ${SAZUMI_PASSWORD}`);
@@ -178,8 +194,6 @@ async function SAZUMI_SINGLE_REGISTRATION() {
 
 async function SAZUMI_CONTINUOUS_REGISTRATION() {
     await SAZUMI_GET_IP_INFO();
-    await SAZUMI_INIT_DRIVER();
-    console.log('[INFO] Browser initialized once');
     while (true) {
         const result = await SAZUMI_SINGLE_REGISTRATION();
         if (result) {
