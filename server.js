@@ -61,14 +61,14 @@ async function SAZUMI_GET_EMAIL() {
 }
 
 async function SAZUMI_GET_VERIFICATION_CODE(email) {
-    const SAZUMI_MAX_ATTEMPTS = 10;
+    const SAZUMI_MAX_ATTEMPTS = 7;
     let SAZUMI_ATTEMPTS = 0;
     while (SAZUMI_ATTEMPTS < SAZUMI_MAX_ATTEMPTS) {
         try {
             const SAZUMI_RESPONSE = await axios.get(`${SAZUMI_MSG_API}?email=${email}`);
             if (SAZUMI_RESPONSE.data && SAZUMI_RESPONSE.data.message) {
                 const SAZUMI_MESSAGE = SAZUMI_RESPONSE.data.message;
-                const SAZUMI_CODE_MATCH = SAZUMI_MESSAGE.match(/(\d{4,6})/);
+                const SAZUMI_CODE_MATCH = SAZUMI_MESSAGE.match(/(\d{4,8})/);
                 if (SAZUMI_CODE_MATCH) {
                     const SAZUMI_CODE = SAZUMI_CODE_MATCH[1];
                     console.log(`[INFO] Verification code found: ${SAZUMI_CODE}`);
@@ -123,50 +123,50 @@ async function SAZUMI_SINGLE_REGISTRATION() {
         await SAZUMI_DRIVER.get(SAZUMI_TARGET_URL);
         await SAZUMI_DRIVER.wait(until.elementLocated(By.css('body')), 15000);
 
-        // 1. Klik tombol LOGIN/Sign In (gunakan selector yang lebih general dan fallback)
+        // Klik tombol LOGIN/Sign in
         let SAZUMI_LOGIN_BTN;
         try {
             SAZUMI_LOGIN_BTN = await SAZUMI_DRIVER.wait(
-                until.elementLocated(By.xpath("//span[contains(text(), 'Login') or contains(text(), 'Sign in') or contains(text(), 'Masuk') or contains(@class, 'bg-theme')]")),
-                15000
+                until.elementLocated(By.xpath("//span[contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'login') or contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'sign in') or contains(@class,'bg-theme')]")),
+                12000
             );
         } catch {
             SAZUMI_LOGIN_BTN = await SAZUMI_DRIVER.findElement(By.css('span.bg-theme, span.text-white.bg-theme'));
         }
         await SAZUMI_LOGIN_BTN.click();
-        await SAZUMI_DRIVER.sleep(1500);
+        await SAZUMI_DRIVER.sleep(1200);
 
-        // 2. Input email
+        // Input email
         const SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
-            until.elementLocated(By.css('input[name="account"], input[type="email"]')), 15000
+            until.elementLocated(By.css('input[name="account"], input[type="email"]')), 12000
         );
         await SAZUMI_EMAIL_INPUT.clear();
         await SAZUMI_EMAIL_INPUT.sendKeys(SAZUMI_EMAIL);
 
-        // 3. Klik tombol SEND
+        // Klik tombol SEND verifikasi
         let SAZUMI_SEND_BTN;
         try {
             SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
-                until.elementLocated(By.xpath("//button[.//span[contains(text(), 'Send') or contains(text(), 'Verifikasi') or contains(text(), 'Kirim') or contains(text(), 'Get') or contains(text(), 'Dapatkan')]]")),
-                10000
+                until.elementLocated(By.xpath("//button[.//span[contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'send') or contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'verifikasi') or contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'get') or contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'dapatkan')]]")),
+                9000
             );
         } catch {
             SAZUMI_SEND_BTN = await SAZUMI_DRIVER.findElement(By.css('button span.text-theme'));
         }
         await SAZUMI_SEND_BTN.click();
 
-        // 4. Tunggu kode OTP
+        // Tunggu kode OTP
         const SAZUMI_CODE = await SAZUMI_GET_VERIFICATION_CODE(SAZUMI_EMAIL);
         if (!SAZUMI_CODE) throw new Error('No verification code');
 
-        // 5. Input OTP/code
+        // Input OTP
         const SAZUMI_CODE_INPUT = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.css('input[name="captcha"], input[type="tel"]')), 10000
         );
         await SAZUMI_CODE_INPUT.clear();
         await SAZUMI_CODE_INPUT.sendKeys(SAZUMI_CODE);
 
-        // 6. Generate password dan input password
+        // Generate password dan input password
         const SAZUMI_PASSWORD = SAZUMI_GENERATE_PASSWORD();
         const SAZUMI_PASSWORD_INPUT = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.css('input[name="password"], input[type="password"]')), 10000
@@ -174,12 +174,12 @@ async function SAZUMI_SINGLE_REGISTRATION() {
         await SAZUMI_PASSWORD_INPUT.clear();
         await SAZUMI_PASSWORD_INPUT.sendKeys(SAZUMI_PASSWORD);
 
-        // 7. Klik Sign Up/Register
+        // Klik Sign Up/Register
         let SAZUMI_SIGNUP_BTN;
         try {
             SAZUMI_SIGNUP_BTN = await SAZUMI_DRIVER.wait(
-                until.elementLocated(By.xpath("//button[contains(@id, 'loginRegisterBtn') or contains(text(), 'Sign up') or contains(text(), 'Register') or contains(text(), 'Daftar') or contains(text(), 'Buat') or contains(text(), 'Gabung')]")),
-                10000
+                until.elementLocated(By.xpath("//button[contains(@id, 'loginRegisterBtn') or contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'sign up') or contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'register') or contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'daftar') or contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'buat') or contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'gabung')]")),
+                9000
             );
         } catch {
             SAZUMI_SIGNUP_BTN = await SAZUMI_DRIVER.findElement(By.css('#loginRegisterBtn'));
