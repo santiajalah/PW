@@ -92,48 +92,33 @@ function SAZUMI_GENERATE_PASSWORD() {
 }
 
 async function SAZUMI_INIT_DRIVER() {
-    if (!SAZUMI_DRIVER) {
-        const SAZUMI_USER_AGENT = SAZUMI_GET_RANDOM_USER_AGENT();
-        const SAZUMI_VIEWPORT = SAZUMI_GET_RANDOM_VIEWPORT();
-        console.log(`[INFO] Using User Agent: ${SAZUMI_USER_AGENT}`);
-        console.log(`[INFO] Using Viewport: ${SAZUMI_VIEWPORT}`);
-        const SAZUMI_OPTIONS = new chrome.Options();
-        SAZUMI_OPTIONS.addArguments('--headless');
-        SAZUMI_OPTIONS.addArguments('--no-sandbox');
-        SAZUMI_OPTIONS.addArguments('--disable-dev-shm-usage');
-        SAZUMI_OPTIONS.addArguments('--disable-gpu');
-        SAZUMI_OPTIONS.addArguments('--disable-blink-features=AutomationControlled');
-        SAZUMI_OPTIONS.addArguments(`--window-size=${SAZUMI_VIEWPORT}`);
-        SAZUMI_OPTIONS.addArguments(`--user-agent=${SAZUMI_USER_AGENT}`);
-        SAZUMI_OPTIONS.addArguments('--disable-web-security');
-        SAZUMI_OPTIONS.addArguments('--disable-features=VizDisplayCompositor');
-        SAZUMI_OPTIONS.addArguments('--disable-extensions');
-        SAZUMI_OPTIONS.excludeSwitches(['enable-automation']);
-        SAZUMI_DRIVER = await new Builder()
-            .forBrowser('chrome')
-            .setChromeOptions(SAZUMI_OPTIONS)
-            .build();
-        await SAZUMI_DRIVER.executeScript("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
-    }
-}
-
-async function SAZUMI_CLEAR_BROWSER_DATA() {
-    try {
-        await SAZUMI_DRIVER.manage().deleteAllCookies();
-        await SAZUMI_DRIVER.executeScript('window.localStorage.clear();');
-        await SAZUMI_DRIVER.executeScript('window.sessionStorage.clear();');
-        console.log('[INFO] Browser data cleared');
-    } catch (error) {
-        console.log(`[ERROR] Failed to clear browser data: ${error.message}`);
-    }
+    const SAZUMI_USER_AGENT = SAZUMI_GET_RANDOM_USER_AGENT();
+    const SAZUMI_VIEWPORT = SAZUMI_GET_RANDOM_VIEWPORT();
+    console.log(`[INFO] Using User Agent: ${SAZUMI_USER_AGENT}`);
+    console.log(`[INFO] Using Viewport: ${SAZUMI_VIEWPORT}`);
+    const SAZUMI_OPTIONS = new chrome.Options();
+    SAZUMI_OPTIONS.addArguments('--headless');
+    SAZUMI_OPTIONS.addArguments('--no-sandbox');
+    SAZUMI_OPTIONS.addArguments('--disable-dev-shm-usage');
+    SAZUMI_OPTIONS.addArguments('--disable-gpu');
+    SAZUMI_OPTIONS.addArguments('--disable-blink-features=AutomationControlled');
+    SAZUMI_OPTIONS.addArguments(`--window-size=${SAZUMI_VIEWPORT}`);
+    SAZUMI_OPTIONS.addArguments(`--user-agent=${SAZUMI_USER_AGENT}`);
+    SAZUMI_OPTIONS.addArguments('--disable-web-security');
+    SAZUMI_OPTIONS.addArguments('--disable-features=VizDisplayCompositor');
+    SAZUMI_OPTIONS.addArguments('--disable-extensions');
+    SAZUMI_OPTIONS.excludeSwitches(['enable-automation']);
+    SAZUMI_DRIVER = await new Builder()
+        .forBrowser('chrome')
+        .setChromeOptions(SAZUMI_OPTIONS)
+        .build();
+    await SAZUMI_DRIVER.executeScript("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
 }
 
 async function SAZUMI_SINGLE_REGISTRATION() {
     let success = false;
     try {
         await SAZUMI_INIT_DRIVER();
-        await SAZUMI_CLEAR_BROWSER_DATA();
-        
         const SAZUMI_EMAIL = await SAZUMI_GET_EMAIL();
         await SAZUMI_DRIVER.get(SAZUMI_TARGET_URL);
         await SAZUMI_DRIVER.sleep(3000);
@@ -176,6 +161,11 @@ async function SAZUMI_SINGLE_REGISTRATION() {
         success = true;
     } catch (error) {
         console.log(`[ERROR] Registration failed: ${error.message}`);
+    } finally {
+        if (SAZUMI_DRIVER) {
+            await SAZUMI_DRIVER.quit();
+            console.log('[INFO] Browser closed');
+        }
     }
     return success;
 }
