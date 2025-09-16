@@ -7,8 +7,8 @@ const UserAgent = require('user-agents');
 const SAZUMI_APP = express();
 const SAZUMI_PORT = 3000;
 
-const SAZUMI_EMAIL_API = 'https://dumdaduma.zeabur.app/new-email';
-const SAZUMI_MSG_API = 'https://dumdaduma.zeabur.app/msg';
+const SAZUMI_EMAIL_API = 'https://p01--emailtemp--nrrxdm82tt8g.code.run/new-email';
+const SAZUMI_MSG_API = 'https://p01--emailtemp--nrrxdm82tt8g.code.run/msg';
 const SAZUMI_TARGET_URL = 'https://wangxutechnologyhkcolimited.pxf.io/MAzYVP';
 const SAZUMI_IP_API = 'https://ipinfo.io/json';
 
