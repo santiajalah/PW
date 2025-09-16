@@ -7,8 +7,8 @@ const UserAgent = require('user-agents');
 const SAZUMI_APP = express();
 const SAZUMI_PORT = 3000;
 
-const SAZUMI_EMAIL_API = 'https://dumdaduma.zeabur.app/new-email';
-const SAZUMI_MSG_API = 'https://dumdaduma.zeabur.app/msg';
+const SAZUMI_EMAIL_API = 'https://p01--emailtemp--nrrxdm82tt8g.code.run/new-email';
+const SAZUMI_MSG_API = 'https://p01--emailtemp--nrrxdm82tt8g.code.run/msg';
 const SAZUMI_TARGET_URL = 'https://wangxutechnologyhkcolimited.pxf.io/MAzYVP';
 const SAZUMI_IP_API = 'https://ipinfo.io/json';
 
@@ -79,7 +79,7 @@ async function SAZUMI_GET_VERIFICATION_CODE(email) {
         SAZUMI_ATTEMPTS++;
         await new Promise(resolve => setTimeout(resolve, 3000));
     }
-    throw new Error('Verification code not received');
+    return null;
 }
 
 function SAZUMI_GENERATE_PASSWORD() {
@@ -116,6 +116,7 @@ async function SAZUMI_INIT_DRIVER() {
 }
 
 async function SAZUMI_SINGLE_REGISTRATION() {
+    let success = false;
     try {
         await SAZUMI_INIT_DRIVER();
         const SAZUMI_EMAIL = await SAZUMI_GET_EMAIL();
@@ -136,6 +137,7 @@ async function SAZUMI_SINGLE_REGISTRATION() {
         );
         await SAZUMI_SEND_BTN.click();
         const SAZUMI_CODE = await SAZUMI_GET_VERIFICATION_CODE(SAZUMI_EMAIL);
+        if (!SAZUMI_CODE) throw new Error('No verification code');
         const SAZUMI_CODE_INPUT = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.css('input[name="captcha"]')), 10000
         );
@@ -156,6 +158,7 @@ async function SAZUMI_SINGLE_REGISTRATION() {
         console.log(`[INFO] Email: ${SAZUMI_EMAIL}`);
         console.log(`[INFO] Password: ${SAZUMI_PASSWORD}`);
         console.log(`[INFO] Username: ${SAZUMI_EMAIL_DATA.username}`);
+        success = true;
     } catch (error) {
         console.log(`[ERROR] Registration failed: ${error.message}`);
     } finally {
@@ -164,15 +167,18 @@ async function SAZUMI_SINGLE_REGISTRATION() {
             console.log('[INFO] Browser closed');
         }
     }
+    return success;
 }
 
 async function SAZUMI_CONTINUOUS_REGISTRATION() {
     await SAZUMI_GET_IP_INFO();
     while (true) {
-        await SAZUMI_SINGLE_REGISTRATION();
-        const SAZUMI_NEXT_DELAY = SAZUMI_RANDOM_DELAY();
-        console.log(`[INFO] Waiting ${SAZUMI_NEXT_DELAY / 1000} seconds before next registration...`);
-        await new Promise(resolve => setTimeout(resolve, SAZUMI_NEXT_DELAY));
+        const result = await SAZUMI_SINGLE_REGISTRATION();
+        if (result) {
+            const SAZUMI_NEXT_DELAY = SAZUMI_RANDOM_DELAY();
+            console.log(`[INFO] Waiting ${SAZUMI_NEXT_DELAY / 1000} seconds before next registration...`);
+            await new Promise(resolve => setTimeout(resolve, SAZUMI_NEXT_DELAY));
+        }
     }
 }
 
