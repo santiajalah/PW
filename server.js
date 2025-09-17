@@ -17,6 +17,7 @@ let SAZUMI_DRIVER;
 let SAZUMI_EMAIL_DATA;
 let SAZUMI_SESSION_COUNT = 0;
 let SAZUMI_FINGERPRINT_CACHE = new Map();
+let SAZUMI_RESTART_COUNT = 0;
 
 function SAZUMI_RANDOM_DELAY() {
     const SAZUMI_MIN = 10000;
@@ -82,6 +83,21 @@ function SAZUMI_GENERATE_REALISTIC_HEADERS() {
     };
 }
 
+async function SAZUMI_FORCE_RESTART_SERVER() {
+    console.log(`[CRITICAL] Forcing server restart due to rate limit - Restart #${++SAZUMI_RESTART_COUNT}`);
+    
+    if (SAZUMI_DRIVER) {
+        try {
+            await SAZUMI_DRIVER.quit();
+        } catch (error) {}
+    }
+    
+    setTimeout(() => {
+        console.log(`[CRITICAL] Executing server restart now...`);
+        process.exit(1);
+    }, 2000);
+}
+
 async function SAZUMI_GET_IP_INFO() {
     try {
         const SAZUMI_RESPONSE = await axios.get(SAZUMI_IP_API);
@@ -127,6 +143,9 @@ async function SAZUMI_GET_VERIFICATION_CODE(email) {
         SAZUMI_ATTEMPTS++;
         await new Promise(resolve => setTimeout(resolve, 3000));
     }
+    
+    console.log(`[ERROR] No verification code found after ${SAZUMI_MAX_ATTEMPTS} attempts - Rate limit detected`);
+    await SAZUMI_FORCE_RESTART_SERVER();
     return null;
 }
 
@@ -356,7 +375,10 @@ async function SAZUMI_SINGLE_REGISTRATION() {
         await SAZUMI_SEND_BTN.click();
         
         const SAZUMI_CODE = await SAZUMI_GET_VERIFICATION_CODE(SAZUMI_EMAIL);
-        if (!SAZUMI_CODE) throw new Error('No verification code');
+        if (!SAZUMI_CODE) {
+            console.log('[ERROR] No verification code - Server will restart');
+            return false;
+        }
         
         const SAZUMI_CODE_INPUT = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.css('input[name="captcha"]')), 10000
@@ -396,8 +418,8 @@ async function SAZUMI_SINGLE_REGISTRATION() {
     } catch (error) {
         console.log(`[ERROR] Registration failed: ${error.message}`);
         if (error.message.includes('rate limit') || error.message.includes('GatewayBlocked')) {
-            console.log(`[INFO] Rate limit detected - forcing browser restart`);
-            await SAZUMI_FORCE_RESTART_BROWSER();
+            console.log(`[INFO] Rate limit detected - forcing server restart`);
+            await SAZUMI_FORCE_RESTART_SERVER();
         }
     }
     return success;
