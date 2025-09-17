@@ -4,7 +4,6 @@ const chrome = require('selenium-webdriver/chrome');
 const axios = require('axios');
 const UserAgent = require('user-agents');
 const crypto = require('crypto');
-const os = require('os');
 
 const SAZUMI_APP = express();
 const SAZUMI_PORT = 3000;
@@ -18,9 +17,6 @@ let SAZUMI_DRIVER;
 let SAZUMI_EMAIL_DATA;
 let SAZUMI_SESSION_COUNT = 0;
 let SAZUMI_FINGERPRINT_CACHE = new Map();
-let SAZUMI_REQUEST_COUNT = 0;
-let SAZUMI_LAST_REQUEST_TIME = 0;
-let SAZUMI_COOLDOWN_ACTIVE = false;
 
 function SAZUMI_RANDOM_DELAY() {
     const SAZUMI_MIN = 10000;
@@ -66,60 +62,24 @@ function SAZUMI_GENERATE_BROWSER_FINGERPRINT() {
     };
 }
 
-function SAZUMI_GENERATE_MAC_ADDRESS() {
-    const SAZUMI_MAC_PARTS = [];
-    for (let i = 0; i < 6; i++) {
-        SAZUMI_MAC_PARTS.push(Math.floor(Math.random() * 256).toString(16).padStart(2, '0'));
-    }
-    return SAZUMI_MAC_PARTS.join(':');
-}
-
-function SAZUMI_GENERATE_SYSTEM_SPECS() {
-    const SAZUMI_PROCESSORS = ['Intel Core i7-10700K', 'AMD Ryzen 7 3700X', 'Intel Core i5-11400F', 'AMD Ryzen 5 5600X'];
-    const SAZUMI_MEMORY_SIZES = [8, 16, 32, 64];
-    const SAZUMI_GPU_MODELS = ['NVIDIA GeForce RTX 3070', 'AMD Radeon RX 6700 XT', 'NVIDIA GeForce GTX 1660', 'AMD Radeon RX 580'];
+function SAZUMI_GENERATE_REALISTIC_HEADERS() {
+    const SAZUMI_CHROME_VERSIONS = ['118.0.0.0', '117.0.0.0', '116.0.0.0', '115.0.0.0'];
+    const SAZUMI_VERSION = SAZUMI_CHROME_VERSIONS[Math.floor(Math.random() * SAZUMI_CHROME_VERSIONS.length)];
     
     return {
-        processor: SAZUMI_PROCESSORS[Math.floor(Math.random() * SAZUMI_PROCESSORS.length)],
-        memory: SAZUMI_MEMORY_SIZES[Math.floor(Math.random() * SAZUMI_MEMORY_SIZES.length)],
-        gpu: SAZUMI_GPU_MODELS[Math.floor(Math.random() * SAZUMI_GPU_MODELS.length)],
-        macAddress: SAZUMI_GENERATE_MAC_ADDRESS()
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Ch-Ua': `"Chromium";v="${SAZUMI_VERSION.split('.')[0]}", "Google Chrome";v="${SAZUMI_VERSION.split('.')[0]}", "Not=A?Brand";v="99"`,
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"'
     };
-}
-
-function SAZUMI_CALCULATE_ADAPTIVE_DELAY() {
-    const SAZUMI_BASE_DELAY = 60000;
-    const SAZUMI_MULTIPLIER = Math.min(SAZUMI_REQUEST_COUNT / 5, 10);
-    const SAZUMI_RANDOM_FACTOR = Math.random() * 0.5 + 0.75;
-    return Math.floor(SAZUMI_BASE_DELAY * SAZUMI_MULTIPLIER * SAZUMI_RANDOM_FACTOR);
-}
-
-function SAZUMI_CHECK_RATE_LIMIT_THRESHOLD() {
-    const SAZUMI_CURRENT_TIME = Date.now();
-    const SAZUMI_TIME_WINDOW = 300000;
-    
-    if (SAZUMI_CURRENT_TIME - SAZUMI_LAST_REQUEST_TIME < SAZUMI_TIME_WINDOW) {
-        SAZUMI_REQUEST_COUNT++;
-        if (SAZUMI_REQUEST_COUNT >= 8) {
-            SAZUMI_COOLDOWN_ACTIVE = true;
-            return true;
-        }
-    } else {
-        SAZUMI_REQUEST_COUNT = 1;
-    }
-    
-    SAZUMI_LAST_REQUEST_TIME = SAZUMI_CURRENT_TIME;
-    return false;
-}
-
-async function SAZUMI_ADAPTIVE_COOLDOWN() {
-    if (SAZUMI_COOLDOWN_ACTIVE) {
-        const SAZUMI_COOLDOWN_TIME = SAZUMI_CALCULATE_ADAPTIVE_DELAY();
-        console.log(`[INFO] Adaptive cooldown activated - waiting ${SAZUMI_COOLDOWN_TIME / 1000} seconds`);
-        await new Promise(resolve => setTimeout(resolve, SAZUMI_COOLDOWN_TIME));
-        SAZUMI_REQUEST_COUNT = 0;
-        SAZUMI_COOLDOWN_ACTIVE = false;
-    }
 }
 
 async function SAZUMI_GET_IP_INFO() {
@@ -179,7 +139,7 @@ function SAZUMI_GENERATE_PASSWORD() {
     return SAZUMI_PASSWORD;
 }
 
-async function SAZUMI_INJECT_ADVANCED_SPOOFING(driver, fingerprint, systemSpecs) {
+async function SAZUMI_INJECT_FINGERPRINT_SPOOFING(driver, fingerprint) {
     await driver.executeScript(`
         Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
         Object.defineProperty(navigator, 'platform', {get: () => '${fingerprint.platform}'});
@@ -195,8 +155,6 @@ async function SAZUMI_INJECT_ADVANCED_SPOOFING(driver, fingerprint, systemSpecs)
                     const data = imageData.apply(this, arguments);
                     for (let i = 0; i < data.data.length; i += 4) {
                         data.data[i] += ${fingerprint.canvasNoise} % 10;
-                        data.data[i + 1] += ${fingerprint.canvasNoise} % 8;
-                        data.data[i + 2] += ${fingerprint.canvasNoise} % 12;
                     }
                     return data;
                 };
@@ -207,9 +165,7 @@ async function SAZUMI_INJECT_ADVANCED_SPOOFING(driver, fingerprint, systemSpecs)
         const getParameter = WebGLRenderingContext.prototype.getParameter;
         WebGLRenderingContext.prototype.getParameter = function(parameter) {
             if (parameter === 37445) return '${fingerprint.webglVendor}';
-            if (parameter === 37446) return 'ANGLE (${fingerprint.webglVendor}, ${systemSpecs.gpu})';
-            if (parameter === 7936) return '${systemSpecs.gpu}';
-            if (parameter === 7937) return '${systemSpecs.gpu} Direct3D11 vs_5_0 ps_5_0';
+            if (parameter === 37446) return 'ANGLE (${fingerprint.webglVendor})';
             return getParameter.call(this, parameter);
         };
         
@@ -218,111 +174,38 @@ async function SAZUMI_INJECT_ADVANCED_SPOOFING(driver, fingerprint, systemSpecs)
         };
         
         Object.defineProperty(screen, 'colorDepth', {get: () => ${Math.floor(Math.random() * 8) + 24}});
-        Object.defineProperty(navigator, 'deviceMemory', {get: () => ${systemSpecs.memory}});
+        Object.defineProperty(navigator, 'deviceMemory', {get: () => ${Math.pow(2, Math.floor(Math.random() * 3) + 2)}});
         Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => ${Math.floor(Math.random() * 8) + 4}});
-        Object.defineProperty(navigator, 'maxTouchPoints', {get: () => ${Math.floor(Math.random() * 5)}});
-        
-        const originalCreateElement = document.createElement;
-        document.createElement = function(tagName) {
-            const element = originalCreateElement.call(this, tagName);
-            if (tagName.toLowerCase() === 'canvas') {
-                const originalToDataURL = element.toDataURL;
-                element.toDataURL = function() {
-                    const result = originalToDataURL.apply(this, arguments);
-                    const noise = '${fingerprint.id}'.slice(0, 8);
-                    return result.replace(/data:image\/png;base64,/, 'data:image/png;base64,' + noise);
-                };
-            }
-            return element;
-        };
-        
-        const originalGetEntriesByType = performance.getEntriesByType;
-        performance.getEntriesByType = function(type) {
-            const entries = originalGetEntriesByType.call(this, type);
-            if (type === 'navigation') {
-                entries.forEach(entry => {
-                    entry.loadEventEnd += Math.random() * 100;
-                    entry.domContentLoadedEventEnd += Math.random() * 50;
-                });
-            }
-            return entries;
-        };
-        
-        Object.defineProperty(window, 'chrome', {
-            get: () => ({
-                runtime: {
-                    onConnect: null,
-                    onMessage: null
-                },
-                app: {
-                    isInstalled: false
-                }
-            })
-        });
-        
-        window.requestIdleCallback = window.requestIdleCallback || function(cb) {
-            return setTimeout(cb, Math.random() * 50);
-        };
-        
-        const mediaDevices = navigator.mediaDevices;
-        if (mediaDevices && mediaDevices.enumerateDevices) {
-            const originalEnumerateDevices = mediaDevices.enumerateDevices;
-            mediaDevices.enumerateDevices = function() {
-                return originalEnumerateDevices.call(this).then(devices => {
-                    return devices.map(device => ({
-                        ...device,
-                        deviceId: '${crypto.randomBytes(32).toString('hex')}',
-                        groupId: '${crypto.randomBytes(16).toString('hex')}'
-                    }));
-                });
-            };
-        }
     `);
 }
 
-async function SAZUMI_SIMULATE_REALISTIC_BEHAVIOR(driver) {
-    const SAZUMI_SCROLL_COUNT = Math.floor(Math.random() * 4) + 2;
+async function SAZUMI_SIMULATE_HUMAN_BEHAVIOR(driver) {
+    const SAZUMI_SCROLL_COUNT = Math.floor(Math.random() * 3) + 1;
     for (let i = 0; i < SAZUMI_SCROLL_COUNT; i++) {
-        const SAZUMI_SCROLL_Y = Math.floor(Math.random() * 800) + 200;
-        await driver.executeScript(`window.scrollTo({top: ${SAZUMI_SCROLL_Y}, behavior: 'smooth'});`);
-        await driver.sleep(Math.floor(Math.random() * 1500) + 800);
+        await driver.executeScript(`window.scrollTo(0, ${Math.floor(Math.random() * 500) + 100});`);
+        await driver.sleep(Math.floor(Math.random() * 1000) + 500);
     }
     
-    const SAZUMI_MOUSE_MOVES = Math.floor(Math.random() * 5) + 3;
+    const SAZUMI_MOUSE_MOVES = Math.floor(Math.random() * 3) + 2;
     for (let i = 0; i < SAZUMI_MOUSE_MOVES; i++) {
-        const SAZUMI_X = Math.floor(Math.random() * 1000) + 100;
-        const SAZUMI_Y = Math.floor(Math.random() * 700) + 100;
+        const SAZUMI_X = Math.floor(Math.random() * 800) + 100;
+        const SAZUMI_Y = Math.floor(Math.random() * 600) + 100;
         await driver.executeScript(`
-            const event = new MouseEvent('mousemove', {
-                clientX: ${SAZUMI_X}, 
-                clientY: ${SAZUMI_Y},
-                bubbles: true,
-                cancelable: true
-            });
+            const event = new MouseEvent('mousemove', {clientX: ${SAZUMI_X}, clientY: ${SAZUMI_Y}});
             document.dispatchEvent(event);
         `);
-        await driver.sleep(Math.floor(Math.random() * 600) + 300);
+        await driver.sleep(Math.floor(Math.random() * 500) + 200);
     }
-    
-    await driver.executeScript(`
-        const focusEvent = new FocusEvent('focus');
-        document.dispatchEvent(focusEvent);
-        const visibilityEvent = new Event('visibilitychange');
-        document.dispatchEvent(visibilityEvent);
-    `);
-    await driver.sleep(Math.floor(Math.random() * 1000) + 500);
 }
 
 async function SAZUMI_INIT_DRIVER() {
     const SAZUMI_USER_AGENT = SAZUMI_GET_RANDOM_USER_AGENT();
     const SAZUMI_VIEWPORT = SAZUMI_GET_RANDOM_VIEWPORT();
     const SAZUMI_FINGERPRINT = SAZUMI_GENERATE_BROWSER_FINGERPRINT();
-    const SAZUMI_SYSTEM_SPECS = SAZUMI_GENERATE_SYSTEM_SPECS();
     
     console.log(`[INFO] Initializing browser with User Agent: ${SAZUMI_USER_AGENT}`);
     console.log(`[INFO] Using Viewport: ${SAZUMI_VIEWPORT.width}x${SAZUMI_VIEWPORT.height}`);
     console.log(`[INFO] Fingerprint ID: ${SAZUMI_FINGERPRINT.id}`);
-    console.log(`[INFO] System MAC: ${SAZUMI_SYSTEM_SPECS.macAddress}`);
     
     const SAZUMI_OPTIONS = new chrome.Options();
     SAZUMI_OPTIONS.addArguments('--headless');
@@ -342,19 +225,10 @@ async function SAZUMI_INIT_DRIVER() {
     SAZUMI_OPTIONS.addArguments('--disable-background-timer-throttling');
     SAZUMI_OPTIONS.addArguments('--disable-renderer-backgrounding');
     SAZUMI_OPTIONS.addArguments('--disable-backgrounding-occluded-windows');
-    SAZUMI_OPTIONS.addArguments('--disable-ipc-flooding-protection');
-    SAZUMI_OPTIONS.addArguments('--disable-client-side-phishing-detection');
-    SAZUMI_OPTIONS.addArguments('--disable-component-update');
-    SAZUMI_OPTIONS.addArguments('--disable-domain-reliability');
-    SAZUMI_OPTIONS.addArguments('--disable-sync');
-    SAZUMI_OPTIONS.addArguments('--metrics-recording-only');
-    SAZUMI_OPTIONS.addArguments('--no-report-upload');
     SAZUMI_OPTIONS.excludeSwitches(['enable-automation']);
     SAZUMI_OPTIONS.setUserPreferences({
         'profile.default_content_setting_values.notifications': 2,
-        'profile.managed_default_content_settings.images': 2,
-        'profile.default_content_settings.popups': 0,
-        'profile.managed_default_content_settings.media_stream': 2
+        'profile.managed_default_content_settings.images': 2
     });
     
     SAZUMI_DRIVER = await new Builder()
@@ -362,24 +236,20 @@ async function SAZUMI_INIT_DRIVER() {
         .setChromeOptions(SAZUMI_OPTIONS)
         .build();
     
-    await SAZUMI_INJECT_ADVANCED_SPOOFING(SAZUMI_DRIVER, SAZUMI_FINGERPRINT, SAZUMI_SYSTEM_SPECS);
-    SAZUMI_FINGERPRINT_CACHE.set(SAZUMI_SESSION_COUNT, {fingerprint: SAZUMI_FINGERPRINT, specs: SAZUMI_SYSTEM_SPECS});
+    await SAZUMI_INJECT_FINGERPRINT_SPOOFING(SAZUMI_DRIVER, SAZUMI_FINGERPRINT);
+    SAZUMI_FINGERPRINT_CACHE.set(SAZUMI_SESSION_COUNT, SAZUMI_FINGERPRINT);
 }
 
-async function SAZUMI_ADVANCED_RESET_IDENTITY() {
+async function SAZUMI_RESET_BROWSER_IDENTITY() {
     try {
-        await SAZUMI_ADAPTIVE_COOLDOWN();
-        
         const SAZUMI_USER_AGENT = SAZUMI_GET_RANDOM_USER_AGENT();
         const SAZUMI_VIEWPORT = SAZUMI_GET_RANDOM_VIEWPORT();
         const SAZUMI_NEW_FINGERPRINT = SAZUMI_GENERATE_BROWSER_FINGERPRINT();
-        const SAZUMI_NEW_SYSTEM_SPECS = SAZUMI_GENERATE_SYSTEM_SPECS();
         
-        console.log(`[INFO] Advanced identity reset initiated`);
+        console.log(`[INFO] Resetting browser identity`);
         console.log(`[INFO] New User Agent: ${SAZUMI_USER_AGENT}`);
         console.log(`[INFO] New Viewport: ${SAZUMI_VIEWPORT.width}x${SAZUMI_VIEWPORT.height}`);
         console.log(`[INFO] New Fingerprint ID: ${SAZUMI_NEW_FINGERPRINT.id}`);
-        console.log(`[INFO] New System MAC: ${SAZUMI_NEW_SYSTEM_SPECS.macAddress}`);
         
         await SAZUMI_DRIVER.manage().deleteAllCookies();
         
@@ -396,21 +266,14 @@ async function SAZUMI_ADVANCED_RESET_IDENTITY() {
                     names.forEach(name => caches.delete(name));
                 });
             }
-            if (window.webkitStorageInfo) {
-                window.webkitStorageInfo.requestQuota(0, 0, function(){}, function(){});
-            }
-            document.cookie.split(";").forEach(function(c) { 
-                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
-            });
         `);
         
-        await SAZUMI_INJECT_ADVANCED_SPOOFING(SAZUMI_DRIVER, SAZUMI_NEW_FINGERPRINT, SAZUMI_NEW_SYSTEM_SPECS);
+        await SAZUMI_INJECT_FINGERPRINT_SPOOFING(SAZUMI_DRIVER, SAZUMI_NEW_FINGERPRINT);
         
         await SAZUMI_DRIVER.executeScript(`
             Object.defineProperty(navigator, 'userAgent', {
                 get: () => '${SAZUMI_USER_AGENT}'
             });
-            history.replaceState(null, null, '/');
         `);
         
         await SAZUMI_DRIVER.manage().window().setRect({
@@ -419,32 +282,26 @@ async function SAZUMI_ADVANCED_RESET_IDENTITY() {
         });
         
         SAZUMI_SESSION_COUNT++;
-        SAZUMI_FINGERPRINT_CACHE.set(SAZUMI_SESSION_COUNT, {fingerprint: SAZUMI_NEW_FINGERPRINT, specs: SAZUMI_NEW_SYSTEM_SPECS});
+        SAZUMI_FINGERPRINT_CACHE.set(SAZUMI_SESSION_COUNT, SAZUMI_NEW_FINGERPRINT);
         
-        console.log(`[INFO] Advanced identity reset completed - Session: ${SAZUMI_SESSION_COUNT}`);
+        console.log(`[INFO] Browser identity reset successfully - Session: ${SAZUMI_SESSION_COUNT}`);
     } catch (error) {
-        console.log(`[ERROR] Failed advanced identity reset: ${error.message}`);
+        console.log(`[ERROR] Failed to reset browser identity: ${error.message}`);
     }
 }
 
-async function SAZUMI_DEEP_BROWSER_RESTART() {
+async function SAZUMI_FORCE_RESTART_BROWSER() {
     try {
-        console.log(`[INFO] Deep browser restart - Complete environment reset`);
+        console.log(`[INFO] Force restarting browser - Deep reset initiated`);
         if (SAZUMI_DRIVER) {
             await SAZUMI_DRIVER.quit();
         }
-        
-        const SAZUMI_EXTENDED_COOLDOWN = Math.floor(Math.random() * 30000) + 60000;
-        console.log(`[INFO] Extended cooldown: ${SAZUMI_EXTENDED_COOLDOWN / 1000} seconds`);
-        await new Promise(resolve => setTimeout(resolve, SAZUMI_EXTENDED_COOLDOWN));
-        
+        await new Promise(resolve => setTimeout(resolve, 5000));
         await SAZUMI_INIT_DRIVER();
         SAZUMI_SESSION_COUNT++;
-        SAZUMI_REQUEST_COUNT = 0;
-        SAZUMI_COOLDOWN_ACTIVE = false;
-        console.log(`[INFO] Deep browser restart completed - Session: ${SAZUMI_SESSION_COUNT}`);
+        console.log(`[INFO] Browser force restart completed - Session: ${SAZUMI_SESSION_COUNT}`);
     } catch (error) {
-        console.log(`[ERROR] Failed deep browser restart: ${error.message}`);
+        console.log(`[ERROR] Failed to force restart browser: ${error.message}`);
         throw error;
     }
 }
@@ -452,37 +309,33 @@ async function SAZUMI_DEEP_BROWSER_RESTART() {
 async function SAZUMI_SINGLE_REGISTRATION() {
     let success = false;
     try {
-        if (SAZUMI_CHECK_RATE_LIMIT_THRESHOLD()) {
-            await SAZUMI_ADAPTIVE_COOLDOWN();
-        }
-        
         if (!SAZUMI_DRIVER) {
             await SAZUMI_INIT_DRIVER();
-        } else if (SAZUMI_SESSION_COUNT % 2 === 0 && SAZUMI_SESSION_COUNT > 0) {
-            await SAZUMI_DEEP_BROWSER_RESTART();
+        } else if (SAZUMI_SESSION_COUNT % 3 === 0 && SAZUMI_SESSION_COUNT > 0) {
+            await SAZUMI_FORCE_RESTART_BROWSER();
         } else {
-            await SAZUMI_ADVANCED_RESET_IDENTITY();
+            await SAZUMI_RESET_BROWSER_IDENTITY();
         }
         
         const SAZUMI_EMAIL = await SAZUMI_GET_EMAIL();
         
         await SAZUMI_DRIVER.get('about:blank');
-        await SAZUMI_DRIVER.sleep(Math.floor(Math.random() * 2000) + 2000);
+        await SAZUMI_DRIVER.sleep(2000);
         
         await SAZUMI_DRIVER.get(SAZUMI_TARGET_URL);
-        await SAZUMI_DRIVER.sleep(Math.floor(Math.random() * 2000) + 3000);
+        await SAZUMI_DRIVER.sleep(3000);
         
-        await SAZUMI_SIMULATE_REALISTIC_BEHAVIOR(SAZUMI_DRIVER);
+        await SAZUMI_SIMULATE_HUMAN_BEHAVIOR(SAZUMI_DRIVER);
         
         const SAZUMI_LOGIN_BTN = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.css('span.text-white.bg-theme')), 10000
         );
         
-        await SAZUMI_DRIVER.executeScript("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", SAZUMI_LOGIN_BTN);
-        await SAZUMI_DRIVER.sleep(Math.floor(Math.random() * 1000) + 1500);
+        await SAZUMI_DRIVER.executeScript("arguments[0].scrollIntoView(true);", SAZUMI_LOGIN_BTN);
+        await SAZUMI_DRIVER.sleep(1000);
         
         await SAZUMI_LOGIN_BTN.click();
-        await SAZUMI_DRIVER.sleep(Math.floor(Math.random() * 1000) + 2000);
+        await SAZUMI_DRIVER.sleep(2000);
         
         const SAZUMI_EMAIL_INPUT = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.css('input[name="account"]')), 10000
@@ -492,10 +345,10 @@ async function SAZUMI_SINGLE_REGISTRATION() {
         
         for (let char of SAZUMI_EMAIL) {
             await SAZUMI_EMAIL_INPUT.sendKeys(char);
-            await SAZUMI_DRIVER.sleep(Math.floor(Math.random() * 120) + 80);
+            await SAZUMI_DRIVER.sleep(Math.floor(Math.random() * 100) + 50);
         }
         
-        await SAZUMI_DRIVER.sleep(Math.floor(Math.random() * 1000) + 1500);
+        await SAZUMI_DRIVER.sleep(1000);
         
         const SAZUMI_SEND_BTN = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.css('button span.text-theme')), 10000
@@ -512,7 +365,7 @@ async function SAZUMI_SINGLE_REGISTRATION() {
         
         for (let char of SAZUMI_CODE) {
             await SAZUMI_CODE_INPUT.sendKeys(char);
-            await SAZUMI_DRIVER.sleep(Math.floor(Math.random() * 200) + 150);
+            await SAZUMI_DRIVER.sleep(Math.floor(Math.random() * 150) + 100);
         }
         
         const SAZUMI_PASSWORD = SAZUMI_GENERATE_PASSWORD();
@@ -523,30 +376,28 @@ async function SAZUMI_SINGLE_REGISTRATION() {
         
         for (let char of SAZUMI_PASSWORD) {
             await SAZUMI_PASSWORD_INPUT.sendKeys(char);
-            await SAZUMI_DRIVER.sleep(Math.floor(Math.random() * 100) + 60);
+            await SAZUMI_DRIVER.sleep(Math.floor(Math.random() * 80) + 40);
         }
         
-        await SAZUMI_DRIVER.sleep(Math.floor(Math.random() * 1500) + 2000);
+        await SAZUMI_DRIVER.sleep(2000);
         
         const SAZUMI_SIGNUP_BTN = await SAZUMI_DRIVER.wait(
             until.elementLocated(By.id('loginRegisterBtn')), 10000
         );
         await SAZUMI_SIGNUP_BTN.click();
-        await SAZUMI_DRIVER.sleep(Math.floor(Math.random() * 2000) + 5000);
+        await SAZUMI_DRIVER.sleep(5000);
         
         console.log('[INFO] SUCCESS - Account created successfully!');
         console.log(`[INFO] Email: ${SAZUMI_EMAIL}`);
         console.log(`[INFO] Password: ${SAZUMI_PASSWORD}`);
         console.log(`[INFO] Username: ${SAZUMI_EMAIL_DATA.username}`);
-        console.log(`[INFO] Session: ${SAZUMI_SESSION_COUNT}, Requests: ${SAZUMI_REQUEST_COUNT}`);
+        console.log(`[INFO] Session: ${SAZUMI_SESSION_COUNT}`);
         success = true;
     } catch (error) {
         console.log(`[ERROR] Registration failed: ${error.message}`);
         if (error.message.includes('rate limit') || error.message.includes('GatewayBlocked')) {
-            console.log(`[INFO] Rate limit detected - activating deep restart protocol`);
-            SAZUMI_REQUEST_COUNT += 5;
-            SAZUMI_COOLDOWN_ACTIVE = true;
-            await SAZUMI_DEEP_BROWSER_RESTART();
+            console.log(`[INFO] Rate limit detected - forcing browser restart`);
+            await SAZUMI_FORCE_RESTART_BROWSER();
         }
     }
     return success;
