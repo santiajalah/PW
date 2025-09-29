@@ -447,6 +447,10 @@ async function SAZUMI_CONTINUOUS_REGISTRATION() {
     }
 }
 
+app.get('/', (req, res) => {
+    res.status(200).send('Server is up and running');
+});
+
 SAZUMI_APP.listen(SAZUMI_PORT, () => {
     console.log(`[INFO] Server started on port ${SAZUMI_PORT}`);
     SAZUMI_CONTINUOUS_REGISTRATION();
