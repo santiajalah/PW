@@ -447,7 +447,7 @@ async function SAZUMI_CONTINUOUS_REGISTRATION() {
     }
 }
 
-app.get('/', (req, res) => {
+SAZUMI_APP.get('/', (req, res) => {
     res.status(200).send('Server is up and running');
 });
 
