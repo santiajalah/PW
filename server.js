@@ -8,8 +8,8 @@ const crypto = require('crypto');
 const SAZUMI_APP = express();
 const SAZUMI_PORT = 3000;
 
-const SAZUMI_EMAIL_API = 'https://private-email-r42mig4n.ams1.preview.ploi.it/new-email';
-const SAZUMI_MSG_API = 'https://private-email-r42mig4n.ams1.preview.ploi.it/msg';
+const SAZUMI_EMAIL_API = 'https://private-email-3wi2zcpx.ams1.preview.ploi.it/new-email';
+const SAZUMI_MSG_API = 'https://private-email-3wi2zcpx.ams1.preview.ploi.it/msg';
 const SAZUMI_TARGET_URL = 'https://wangxutechnologyhkcolimited.pxf.io/MAzYVP';
 const SAZUMI_IP_API = 'https://ipinfo.io/json';
 
