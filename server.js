@@ -6,7 +6,7 @@ const UserAgent = require('user-agents');
 const crypto = require('crypto');
 
 const SAZUMI_APP = express();
-const SAZUMI_PORT = 3000;
+const SAZUMI_PORT = process.env.PORT || 3000;
 
 const SAZUMI_EMAIL_API = 'https://private-email-3wi2zcpx.ams1.preview.ploi.it/new-email';
 const SAZUMI_MSG_API = 'https://private-email-3wi2zcpx.ams1.preview.ploi.it/msg';
